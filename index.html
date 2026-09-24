@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>東港 × 前鎮 遠洋漁業繪本</title>
+<meta name="description" content="跟著阿清與小麗，從東港到前鎮，認識臺灣的遠洋漁業。16 頁剪紙風格繪本與旁白動畫。">
+<meta property="og:title" content="東港 × 前鎮 遠洋漁業繪本">
+<meta property="og:description" content="跟著阿清與小麗，從東港到前鎮，認識臺灣的遠洋漁業。">
+<meta property="og:image" content="assets/pages/p01.webp">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐟</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --abyss:#082c57; --deep:#0d4a8a; --sea:#1f78c8; --lagoon:#3aa6e0; --sky:#8fd3f4; --foam:#eaf8ff;
+  --coral:#ff7a59; --octo:#f59a3e; --sand:#ffe3a3; --pink:#ff6fa3; --kelp:#2fb99a; --ink:#0b2540;
+  --paper:#fffaf0; --card:#ffffff; --shadow:0 18px 40px -18px rgba(4,30,70,.55);
+  --r:22px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:"Noto Sans TC",system-ui,sans-serif;color:var(--ink);background:var(--abyss);line-height:1.7;overflow-x:hidden}
+img{display:block;max-width:100%}
+a{color:inherit}
+.grain::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.22;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.wrap{width:min(1180px,100% - 32px);margin-inline:auto}
+
+/* ---------- nav ---------- */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;transition:background .3s,box-shadow .3s}
+nav.solid{background:rgba(8,44,87,.86);backdrop-filter:blur(10px);box-shadow:0 6px 20px -10px #000a}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:62px;color:#fff}
+.brand{font-family:"LXGW WenKai TC",serif;font-weight:700;font-size:1.15rem;letter-spacing:.06em;text-decoration:none;display:flex;gap:.45em;align-items:center}
+nav ul{display:flex;gap:6px;list-style:none}
+nav ul a{display:block;padding:6px 14px;border-radius:99px;text-decoration:none;font-weight:500;font-size:.95rem}
+nav ul a:hover{background:#ffffff26}
+@media (max-width:560px){nav ul a{padding:6px 9px;font-size:.88rem}.brand span{display:none}}
+
+/* ---------- hero ---------- */
+.hero{position:relative;min-height:100svh;display:grid;place-items:center;text-align:center;color:#fff;overflow:hidden;
+  background:linear-gradient(180deg,rgba(8,44,87,.25) 0%,rgba(13,74,138,.35) 45%,rgba(8,44,87,.92) 100%),url(assets/pages/p01.webp) center/cover no-repeat}
+.hero-inner{position:relative;z-index:2;padding:110px 16px 150px}
+.kicker{display:inline-block;background:var(--sand);color:var(--deep);font-weight:700;border-radius:99px;padding:6px 18px;font-size:.95rem;letter-spacing:.08em;box-shadow:0 6px 0 #0003}
+h1{font-family:"LXGW WenKai TC",serif;font-weight:700;font-size:clamp(2.4rem,7vw,5.2rem);line-height:1.15;margin:.35em 0 .25em;text-shadow:0 4px 0 #0b3a6e,0 10px 30px #0008;letter-spacing:.04em}
+h1 .x{color:var(--octo)}
+.hero p.lead{font-size:clamp(1.05rem,2.4vw,1.35rem);max-width:640px;margin:0 auto;padding:12px 22px;border-radius:18px;background:rgba(8,44,87,.55);backdrop-filter:blur(3px);text-shadow:0 1px 4px #0008}
+.cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:34px}
+.btn{display:inline-flex;align-items:center;gap:.5em;padding:14px 28px;border-radius:99px;font-weight:700;font-size:1.05rem;text-decoration:none;border:0;cursor:pointer;transition:transform .2s,box-shadow .2s}
+.btn:hover{transform:translateY(-3px)}
+.btn-coral{background:var(--coral);color:#fff;box-shadow:0 6px 0 #c94f33}
+.btn-foam{background:#fff;color:var(--deep);box-shadow:0 6px 0 #9cc9e6}
+.wave{position:absolute;left:0;right:0;bottom:-1px;width:100%;height:120px;z-index:3}
+
+/* bubbles */
+.bubbles{position:absolute;inset:0;z-index:1;pointer-events:none}
+.bubbles i{position:absolute;bottom:-40px;border-radius:50%;border:2px solid #ffffffb0;background:radial-gradient(circle at 30% 30%,#fff9,#fff0 60%);animation:rise linear infinite}
+@keyframes rise{to{transform:translateY(-115vh) translateX(var(--dx,20px));opacity:0}}
+@media (prefers-reduced-motion:reduce){.bubbles{display:none}}
+
+/* ---------- sections ---------- */
+section{position:relative}
+.sec-title{text-align:center;margin-bottom:34px}
+.sec-title .tag{display:inline-block;font-size:.85rem;font-weight:700;letter-spacing:.2em;padding:4px 14px;border-radius:99px;background:var(--octo);color:#fff}
+.sec-title h2{font-family:"LXGW WenKai TC",serif;font-size:clamp(1.9rem,4.5vw,2.8rem);margin-top:.3em;line-height:1.25}
+.sec-title p{opacity:.85;margin-top:.4em}
+
+#video{background:linear-gradient(180deg,var(--abyss) 0%,var(--deep) 100%);color:#fff;padding:70px 0 120px}
+.screen{position:relative;border-radius:var(--r);overflow:hidden;background:#000;box-shadow:0 30px 60px -25px #000,0 0 0 8px #ffffff1c}
+.screen video{width:100%;aspect-ratio:16/9;display:block;background:#000}
+.meta{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:22px}
+.chip{background:#ffffff1f;border:1px solid #ffffff33;padding:6px 14px;border-radius:99px;font-size:.9rem}
+
+/* ---------- reader ---------- */
+#book{background:linear-gradient(180deg,var(--deep) 0%,var(--sea) 30%,var(--lagoon) 70%,var(--sky) 100%);color:#fff;padding:60px 0 130px}
+.reader{background:var(--paper);color:var(--ink);border-radius:28px;padding:18px;box-shadow:var(--shadow);position:relative}
+.reader .stage{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:3/2;background:#cfe9f7}
+.reader .stage img{width:100%;height:100%;object-fit:cover;transition:opacity .35s}
+.pgno{position:absolute;top:14px;left:14px;background:var(--coral);color:#fff;font-weight:900;border-radius:14px;padding:4px 14px;font-size:1rem;box-shadow:0 4px 0 #c94f33}
+.arrow{position:absolute;top:50%;translate:0 -50%;width:54px;height:54px;border-radius:50%;border:0;background:#ffffffe6;color:var(--deep);font-size:1.6rem;font-weight:900;cursor:pointer;box-shadow:0 6px 18px -6px #0008;display:grid;place-items:center;transition:transform .2s}
+.arrow:hover{transform:scale(1.08)}
+.arrow.prev{left:14px}.arrow.next{right:14px}
+.story{font-family:"LXGW WenKai TC",serif;font-size:clamp(1.1rem,2.4vw,1.45rem);line-height:1.9;padding:22px 14px 10px;min-height:5.8em}
+.controls{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 10px 4px;flex-wrap:wrap}
+.dots{display:flex;gap:6px;flex-wrap:wrap}
+.dots button{width:12px;height:12px;border-radius:50%;border:0;background:#bcd9ea;cursor:pointer;padding:0}
+.dots button.on{background:var(--coral);transform:scale(1.25)}
+.small-btn{border:0;background:var(--foam);color:var(--deep);font-weight:700;border-radius:99px;padding:8px 16px;cursor:pointer;font-size:.92rem}
+.small-btn:hover{background:#d4efff}
+
+/* grid of pages */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px;margin-top:40px}
+@media (max-width:520px){.grid{grid-template-columns:repeat(2,1fr);gap:10px}.tile div{font-size:.8rem}}
+.tile{background:#ffffffe8;color:var(--ink);border:0;border-radius:18px;overflow:hidden;cursor:pointer;text-align:left;box-shadow:0 12px 26px -16px #0b2540;transition:transform .2s;font:inherit}
+.tile:hover{transform:translateY(-4px) rotate(-.4deg)}
+.tile img{aspect-ratio:3/2;object-fit:cover;width:100%}
+.tile div{padding:8px 12px 12px;font-size:.88rem;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile b{color:var(--coral);margin-right:.35em}
+
+/* ---------- characters ---------- */
+#cast{background:linear-gradient(180deg,var(--sky) 0%,var(--foam) 100%);padding:60px 0 110px}
+.cast{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+@media (min-width:600px){.cast{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:1000px){.cast{grid-template-columns:repeat(6,1fr)}}
+.pal{background:#fff;border-radius:20px;padding:18px 16px;box-shadow:0 12px 24px -16px #0b2540;text-align:center}
+.pal .em{font-size:2.3rem;line-height:1}
+.pal h3{font-family:"LXGW WenKai TC",serif;font-size:1.3rem;margin:.3em 0 .1em}
+.pal p{font-size:.88rem;color:#3c5873}
+
+/* ---------- footer ---------- */
+footer{position:relative;background:linear-gradient(180deg,#f6c98a 0%,var(--sand) 100%);color:#5a3b12;padding:70px 0 40px;overflow:hidden}
+footer .coral-row{position:absolute;top:-2px;left:0;right:0;height:60px}
+.credits{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.credits div{background:#fff8e8;border-radius:18px;padding:16px 18px;box-shadow:0 10px 20px -16px #5a3b12}
+.credits h4{color:var(--coral);font-size:1rem;margin-bottom:.2em}
+.credits p{font-size:.92rem}
+.copy{text-align:center;margin-top:30px;font-size:.85rem;opacity:.8}
+
+/* lightbox */
+.lb{position:fixed;inset:0;background:#041a33f2;z-index:100;display:none;place-items:center;padding:16px}
+.lb.open{display:grid}
+.lb img{max-height:82vh;border-radius:14px;box-shadow:0 30px 60px #000}
+.lb p{color:#fff;font-family:"LXGW WenKai TC",serif;font-size:1.15rem;max-width:900px;text-align:center;margin-top:14px}
+.lb .x{position:absolute;top:14px;right:18px;background:#fff;border:0;border-radius:50%;width:44px;height:44px;font-size:1.3rem;cursor:pointer}
+@media (max-width:640px){.arrow{width:42px;height:42px;font-size:1.2rem}.reader{padding:10px}.story{padding:16px 6px 6px}}
+</style>
+</head>
+<body>
+
+<nav id="nav"><div class="wrap">
+  <a class="brand" href="#top">🐟 <span>東港 × 前鎮 遠洋漁業繪本</span></a>
+  <ul><li><a href="#video">動畫</a></li><li><a href="#book">繪本</a></li><li><a href="#cast">角色</a></li></ul>
+</div></nav>
+
+<header class="hero grain" id="top">
+  <div class="bubbles" id="bubbles" aria-hidden="true"></div>
+  <div class="hero-inner">
+    <span class="kicker">東港大潭國小 × 前鎮 繪本創作</span>
+    <h1>東港 <span class="x">×</span> 前鎮<br>遠洋漁業繪本</h1>
+    <p class="lead">跟著阿清與小麗，從東港黑鮪魚季到前鎮魷釣船隊，<br>一起認識臺灣的遠洋漁業與守候平安的家人。</p>
+    <div class="cta">
+      <a class="btn btn-coral" href="#video">▶ 觀看繪本動畫</a>
+      <a class="btn btn-foam" href="#book">📖 翻閱 16 頁繪本</a>
+    </div>
+  </div>
+  <svg class="wave" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true"><path fill="#082c57" d="M0,64 C180,110 360,20 540,50 C720,80 900,120 1080,80 C1260,40 1350,60 1440,70 L1440,120 L0,120 Z"/></svg>
+</header>
+
+<section id="video" class="grain">
+  <div class="wrap">
+    <div class="sec-title"><span class="tag">ANIMATION</span><h2>繪本動畫</h2><p>16 頁插畫化身動畫，搭配臺灣口音旁白（可開啟字幕）</p></div>
+    <div class="screen">
+      <video controls preload="metadata" playsinline poster="assets/video/poster.jpg">
+        <source src="assets/video/picturebook.mp4" type="video/mp4">
+        <track kind="subtitles" srclang="zh-TW" label="中文字幕" src="assets/video/zh-TW.vtt">
+        您的瀏覽器不支援影片播放。
+      </video>
+    </div>
+    <div class="meta"><span class="chip">⏱ 約 4 分鐘</span><span class="chip">🎙 臺灣口音旁白</span><span class="chip">💬 中文字幕</span><span class="chip">📺 1080p</span></div>
+    <div class="cta" style="margin-top:22px"><a class="btn btn-foam" href="https://github.com/maxchin18/donggang-qianzhen-picturebook/releases/download/v1.0/picturebook_original_1080p.mp4" download>⬇ 下載原始畫質影片（1080p）</a></div>
+  </div>
+  <svg class="wave" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true"><path fill="#0d4a8a" d="M0,80 C240,30 420,110 720,70 C1000,30 1200,100 1440,60 L1440,120 L0,120 Z"/></svg>
+</section>
+
+<section id="book" class="grain">
+  <div class="wrap">
+    <div class="sec-title"><span class="tag">STORYBOOK</span><h2>翻閱繪本</h2><p>點擊箭頭、圓點，或用鍵盤 ← → 翻頁；手機可左右滑動</p></div>
+    <div class="reader" id="reader">
+      <div class="stage" id="stage">
+        <img id="pgImg" src="assets/pages/p01.webp" alt="">
+        <span class="pgno" id="pgNo">P.1</span>
+        <button class="arrow prev" id="prev" aria-label="上一頁">‹</button>
+        <button class="arrow next" id="next" aria-label="下一頁">›</button>
+      </div>
+      <p class="story" id="pgText"></p>
+      <div class="controls">
+        <div class="dots" id="dots"></div>
+        <button class="small-btn" id="zoom">🔍 放大看</button>
+      </div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+  <svg class="wave" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true"><path fill="#8fd3f4" d="M0,60 C200,100 400,30 700,60 C1000,90 1200,40 1440,70 L1440,120 L0,120 Z"/></svg>
+</section>
+
+<section id="cast">
+  <div class="wrap">
+    <div class="sec-title" style="color:var(--deep)"><span class="tag">CHARACTERS</span><h2>故事裡的角色</h2></div>
+    <div class="cast">
+      <div class="pal"><div class="em">👦</div><h3>阿清</h3><p>住在東港的男孩，最愛問阿公漁船的故事</p></div>
+      <div class="pal"><div class="em">👴</div><h3>阿公</h3><p>老漁夫，熟知臺灣漁船的演進</p></div>
+      <div class="pal"><div class="em">👧</div><h3>小麗</h3><p>住在前鎮的表妹，等待爸爸平安歸來</p></div>
+      <div class="pal"><div class="em">🧑‍✈️</div><h3>小麗的爸爸</h3><p>遠洋漁船船員，北太平洋捕秋刀魚</p></div>
+      <div class="pal"><div class="em">🚢</div><h3>阿東</h3><p>東港 CT6 鮪延繩釣漁船</p></div>
+      <div class="pal"><div class="em">🦑</div><h3>阿鎮</h3><p>前鎮 CT8 大型魷釣船</p></div>
+    </div>
+  </div>
+  <svg class="wave" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true"><path fill="#f6c98a" d="M0,70 C260,110 480,40 760,70 C1040,100 1240,50 1440,80 L1440,120 L0,120 Z"/></svg>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="credits">
+      <div><h4>📝 文稿</h4><p>東港 × 前鎮 繪本文稿（16 頁，橫式左翻）</p></div>
+      <div><h4>🎨 插畫</h4><p>剪紙拼貼風格插畫，以 ChatGPT 生成</p></div>
+      <div><h4>🎬 動畫</h4><p>Google Flow 將插畫製成動畫與環境音</p></div>
+      <div><h4>🎙 旁白</h4><p>微軟 zh-TW HsiaoChen 臺灣口音語音，依文稿逐字朗讀</p></div>
+    </div>
+    <p class="copy">東港大潭國小 繪本創作 ・ 願每一艘出海的漁船，都能魚蝦滿載、平安歸來 🐟</p>
+  </div>
+</footer>
+
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="放大檢視">
+  <button class="x" id="lbClose" aria-label="關閉">✕</button>
+  <div><img id="lbImg" alt=""><p id="lbText"></p></div>
+</div>
+
+<script>
+const PAGES=[
+"近百艘前鎮 CT8 魷釣船陸續啟航，歷經35至 40 天左右，航行抵達西南大西洋漁場。",
+"另一方面，東港CT3和CT4漁船展開鮪延繩釣作業，在海中拉開長長的主繩，垂掛支繩與魚鉤。此時正值東港黑鮪魚季，船員們合力捕撈體型碩大的黑鮪魚。",
+"東港CT6漁船「阿東」與前鎮CT8漁船「阿鎮」在茫茫的印度洋上相遇，兩船熱絡地介紹自己的母港與捕撈的魚種，隨後揮手道別。",
+"阿清與阿公站在東港漁港邊，看著CT6滿載而歸。「CT6是最大的漁船嗎？」阿清問阿公。",
+"「東港漁港有CT5和CT6漁船，前鎮漁港還有更大的CT7和CT8漁船。」阿公說。",
+"「所有的漁船都是用木頭做的嗎？」阿清問阿公。「臺灣早期有木製舢舨、木殼船、水泥船，到現代的玻璃纖維船及鐵殼船。」阿公回答說。",
+"「什麼是舢舨？」阿清問阿公。「舢舨是一種木材或玻璃纖維製成的小型船，船頭形狀有齊頭與尖頭二種。」阿公回答說。「對了，早期還有竹筏，它是非船型的浮具。」阿公接著說。",
+"暑假期間，阿清至前鎮表妹小麗家玩，看到前鎮漁港魷釣船滿載返航，進行卸漁貨、整補與更換燈具作業，為捕撈秋刀魚做準備。",
+"小麗的爸爸即將啟航前往北太平洋捕秋刀魚，父女依依不捨，爸爸溫柔地答應她，中秋節前就可以吃到肥美的秋刀魚。",
+"外籍與本籍漁工因長期在遠洋漁船上刻苦辛勞，同心協力相互合作，家人們都期待平安歸來。漁船在大海上因為天候不良或機件故障，也會造成漁船危機。",
+"媽媽帶著小麗在前鎮漁港碼頭佇足，吹著海風，靜靜地等待著小麗的爸爸平安歸來。",
+"中秋節到了，阿清一家人帶著「東港三寶」黑鮪魚、櫻花蝦及油魚子到小麗家作客及烤肉。炭火上烤著舅舅剛捕撈回來的秋刀魚與魷魚，滋滋作響。歲末寒冬，餐桌上匯聚了魷魚、鮪魚、秋刀魚「遠洋三寶」。阿清與小麗更一起到港邊參加高雄「大海開吃」漁業文化推廣活動。",
+"隨著冬季漁汛到來，前鎮 CT8「阿鎮」與東港 CT6「阿東」再度出港。在歲末年初寒冷的海上，東港與前鎮的船群奇蹟般再度相遇，開啟新一輪的捕撈作業。",
+"除夕夜，東港與前鎮的家族齊聚一堂圍爐，阿清和阿公一起看著船舶監控系統（VMS）傳回的即時船位資料，討論著「阿東」與「阿鎮」此時在大海上的位置。「現在用手機或平板可以看到漁船的位置，真是太神奇了！」阿公說。",
+"春節期間，阿清和小麗跟著阿公走訪前鎮「船員會館」，看到會館裡面有宗教的祈禱室、多元休閒設施及住宿等，展現了臺灣對於外籍船員在臺的人權保障與友善對待。",
+"寒假結束前，阿清和小麗在港邊許下心願，期待家人在外捕魚，能夠魚蝦滿載，平安歸來。"
+];
+const pad=n=>String(n).padStart(2,'0');
+const src=(i,s='')=>`assets/pages/p${pad(i+1)}${s}.webp`;
+let cur=0;
+const $=id=>document.getElementById(id);
+const dots=$('dots'), grid=$('grid');
+PAGES.forEach((t,i)=>{
+  const d=document.createElement('button'); d.setAttribute('aria-label',`第 ${i+1} 頁`); d.onclick=()=>go(i); dots.appendChild(d);
+  const tl=document.createElement('button'); tl.className='tile';
+  tl.innerHTML=`<img loading="lazy" src="${src(i,'-s')}" alt="第 ${i+1} 頁插畫"><div><b>P.${i+1}</b>${t}</div>`;
+  tl.onclick=()=>{go(i);$('book').scrollIntoView({behavior:'smooth'})}; grid.appendChild(tl);
+});
+function go(i){
+  cur=(i+PAGES.length)%PAGES.length;
+  const img=$('pgImg'); img.style.opacity=0;
+  const n=new Image(); n.onload=()=>{img.src=n.src; img.alt=`第 ${cur+1} 頁插畫`; img.style.opacity=1}; n.src=src(cur);
+  $('pgNo').textContent=`P.${cur+1} / ${PAGES.length}`; $('pgText').textContent=PAGES[cur];
+  [...dots.children].forEach((d,k)=>d.classList.toggle('on',k===cur));
+  new Image().src=src((cur+1)%PAGES.length);
+}
+$('prev').onclick=()=>go(cur-1); $('next').onclick=()=>go(cur+1);
+document.addEventListener('keydown',e=>{
+  if($('lb').classList.contains('open')){ if(e.key==='Escape') closeLb(); if(e.key==='ArrowRight'){go(cur+1);openLb()} if(e.key==='ArrowLeft'){go(cur-1);openLb()} return;}
+  if(e.target.tagName==='VIDEO')return;
+  const r=$('reader').getBoundingClientRect(); if(r.top>innerHeight||r.bottom<0)return;
+  if(e.key==='ArrowRight')go(cur+1); if(e.key==='ArrowLeft')go(cur-1);
+});
+let sx=null; const st=$('stage');
+st.addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});
+st.addEventListener('touchend',e=>{if(sx===null)return;const dx=e.changedTouches[0].clientX-sx; if(Math.abs(dx)>40)go(cur+(dx<0?1:-1)); sx=null});
+function openLb(){$('lbImg').src=src(cur);$('lbImg').alt=`第 ${cur+1} 頁插畫`;$('lbText').textContent=`P.${cur+1}　${PAGES[cur]}`;$('lb').classList.add('open')}
+function closeLb(){$('lb').classList.remove('open')}
+$('zoom').onclick=openLb; $('pgImg').onclick=openLb; $('lbClose').onclick=closeLb; $('lb').onclick=e=>{if(e.target.id==='lb')closeLb()};
+go(0);
+// bubbles
+const b=$('bubbles');
+for(let i=0;i<22;i++){const e=document.createElement('i');const s=6+Math.random()*22;
+  e.style.cssText=`left:${Math.random()*100}%;width:${s}px;height:${s}px;animation-duration:${9+Math.random()*12}s;animation-delay:${-Math.random()*18}s;--dx:${(Math.random()*80-40)|0}px`;b.appendChild(e)}
+// nav
+const nav=$('nav'); const onS=()=>nav.classList.toggle('solid',scrollY>40); addEventListener('scroll',onS,{passive:true}); onS();
+</script>
+</body>
+</html>
