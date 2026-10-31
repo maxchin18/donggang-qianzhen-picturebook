@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>會動的繪本・第 2 頁</title>
+<meta name="description" content="用手機對準《東港 × 前鎮》繪本第 2 頁，畫面就會動起來，還有旁白。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐟</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 版面：深海藍底的單欄說明卡，進入 AR 後整頁交給相機畫面 */
+:root{
+  --abyss:#082c57; --deep:#0d4a8a; --foam:#eaf8ff; --coral:#ff7a59; --sand:#ffe3a3; --ink:#0b2540;
+  --display:"LXGW WenKai TC","Kaiti TC","STKaiti",serif;
+  --body:"Noto Sans TC",system-ui,"PingFang TC","Microsoft JhengHei",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{font-family:var(--body);background:var(--abyss);color:var(--foam);line-height:1.7}
+img,video{display:block;max-width:100%}
+button{font:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:3px solid var(--sand);outline-offset:3px}
+
+#intro{min-height:100%;display:flex;flex-direction:column;align-items:center;gap:22px;
+  padding-block:calc(28px + env(safe-area-inset-top,0px)) calc(28px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.card{width:min(640px,100%);display:flex;flex-direction:column;gap:18px}
+.eyebrow{font-size:.85rem;letter-spacing:.12em;color:var(--sand)}
+h1{font-family:var(--display);font-size:clamp(1.8rem,6vw,2.6rem);line-height:1.25;text-wrap:balance}
+.lead{color:#cfe7f7}
+ol{display:flex;flex-direction:column;gap:10px;padding-left:1.4em}
+ol li::marker{color:var(--coral);font-weight:700}
+.actions{display:flex;flex-wrap:wrap;gap:12px}
+.btn{border:0;border-radius:999px;padding:14px 26px;font-weight:700;font-size:1.05rem}
+.btn.main{background:var(--coral);color:#fff;box-shadow:0 10px 24px -10px #ff7a59}
+.btn.ghost{background:transparent;color:var(--foam);border:2px solid #ffffff55}
+.note{font-size:.88rem;color:#a9c8e0}
+.note a{color:var(--sand)}
+
+/* 預覽模式：沒有相機時，直接在螢幕上看「紙變活」的效果 */
+#preview{width:min(900px,100%);display:flex;flex-direction:column;gap:10px}
+.page{position:relative;width:100%;aspect-ratio:3/2;border-radius:6px;overflow:hidden;box-shadow:0 18px 40px -18px #000c;background:#fff}
+.page img{width:100%;height:100%;object-fit:cover}
+.page video{position:absolute;left:0;top:7.8125%;width:100%;height:84.375%;object-fit:cover;opacity:0;transition:opacity .8s}
+.page video.on{opacity:1}
+.page .tap{position:absolute;inset:auto 0 12px 0;margin-inline:auto;width:max-content;background:#082c57cc;color:#fff;
+  border:0;border-radius:999px;padding:10px 20px;font-weight:700}
+
+/* AR 畫面 */
+#ar{position:fixed;inset:0;overflow:hidden;z-index:0}
+#ar .mindar-ui-overlay{z-index:2}
+.hud{position:fixed;left:0;right:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+.hud.top{top:0;padding-top:calc(12px + env(safe-area-inset-top,0px))}
+.hud button{border:0;border-radius:999px;padding:9px 16px;background:#082c57d9;color:#fff;font-weight:700}
+#cap{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:5;
+  width:min(92vw,720px);text-align:center;font-family:var(--display);font-size:clamp(1rem,4.2vw,1.35rem);
+  background:#082c57d9;border-radius:14px;padding:8px 14px;color:#fff}
+#hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:4;width:min(80vw,420px);text-align:center;
+  background:#082c57d9;border-radius:16px;padding:16px;color:#fff;pointer-events:none}
+#hint .frame{width:70%;aspect-ratio:3/2;margin:0 auto 10px;border:3px dashed var(--sand);border-radius:8px}
+@media (prefers-reduced-motion:reduce){.page video{transition:none}}
+</style>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/",
+  "mindar-image-three":"https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+}}
+</script>
+</head>
+<body>
+
+<main id="intro">
+  <section class="card">
+    <p class="eyebrow">東港 × 前鎮 遠洋漁業繪本・AR 試作</p>
+    <h1>對準第 2 頁，看鮪延繩釣船動起來</h1>
+    <p class="lead">就像哈利波特的魔法報紙：手機鏡頭認出紙本上的畫，畫面會在紙上活過來，還會唸出旁白。</p>
+    <ol>
+      <li>準備第 2 頁：印出紙本，或在另一台電腦螢幕打開<a href="../assets/pages/p02.webp" target="_blank" rel="noopener" style="color:var(--sand)">第 2 頁大圖</a>。</li>
+      <li>按「開始 AR」，允許使用相機。</li>
+      <li>把整頁放進畫面裡，稍微保持穩定，畫就會開始動。</li>
+    </ol>
+    <div class="actions">
+      <button class="btn main" id="startAR" type="button">開始 AR</button>
+      <button class="btn ghost" id="showPreview" type="button">沒有紙本？先看預覽</button>
+    </div>
+    <p class="note">需要用手機瀏覽器開啟（iPhone 用 Safari、Android 用 Chrome），並開啟聲音。若相機沒有反應，請確認網址是 https 開頭，並在瀏覽器設定中允許相機。</p>
+  </section>
+
+  <section id="preview" hidden>
+    <div class="page">
+      <img src="../assets/pages/p02.webp" alt="繪本第 2 頁：東港漁船進行鮪延繩釣，海面下有黑鮪魚與一排排魚鉤">
+      <video id="pv" src="p02.mp4" playsinline preload="metadata"></video>
+      <button class="tap" id="pvPlay" type="button">▶ 讓這一頁動起來</button>
+    </div>
+    <p class="note">預覽是在螢幕上模擬 AR 的效果：動畫會剛好疊在原畫的位置，所以看起來像紙上的畫自己動了。</p>
+  </section>
+</main>
+
+<div id="ar" hidden></div>
+<div class="hud top" id="hud" hidden>
+  <button id="exit" type="button">← 返回</button>
+  <span style="display:flex;gap:8px">
+    <button id="replay" type="button" hidden>↻ 重播</button>
+    <button id="mute" type="button">🔊 聲音開</button>
+  </span>
+</div>
+<div id="hint" hidden><div class="frame"></div>把繪本第 2 頁整頁放進畫面</div>
+<div id="cap" hidden></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { MindARThree } from 'mindar-image-three';
+
+// 旁白字幕（秒數相對於本頁影片）
+const CAPS = [
+  [0.57, 5.95, '另一方面，東港CT3和CT4漁船展開鮪延繩釣作業，'],
+  [6.45, 10.49, '在海中拉開長長的主繩，垂掛支繩與魚鉤。'],
+  [10.99, 16.53, '此時正值東港黑鮪魚季，船員們合力捕撈體型碩大的黑鮪魚。'],
+];
+// 繪本頁 3:2；影片 16:9 是整頁寬、上下各裁掉 7.8125%
+const PAGE_H = 1024 / 1536, VIDEO_H = 9 / 16;
+
+const $ = id => document.getElementById(id);
+const capEl = $('cap');
+
+function captionAt(t) {
+  const c = CAPS.find(([a, b]) => t >= a && t <= b);
+  return c ? c[2] : '';
+}
+
+// ---------- 預覽模式 ----------
+$('showPreview').addEventListener('click', () => {
+  $('preview').hidden = false;
+  $('preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+const pv = $('pv');
+$('pvPlay').addEventListener('click', () => {
+  pv.currentTime = 0;
+  pv.play();
+  pv.classList.add('on');
+  $('pvPlay').hidden = true;
+});
+pv.addEventListener('ended', () => {
+  pv.classList.remove('on');
+  $('pvPlay').hidden = false;
+  $('pvPlay').textContent = '↻ 再看一次';
+});
+
+// ---------- AR 模式 ----------
+let mindar = null, video = null, fade = 0, visible = false;
+
+$('startAR').addEventListener('click', async () => {
+  // 在點擊當下先解鎖影片播放（iPhone 需要）
+  video = document.createElement('video');
+  video.src = 'p02.mp4';
+  video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  video.crossOrigin = 'anonymous';
+  video.preload = 'auto';
+  try { await video.play(); video.pause(); video.currentTime = 0; } catch (e) { /* 之後對準時再播 */ }
+
+  $('intro').hidden = true;
+  $('ar').hidden = false;
+  $('hud').hidden = false;
+  $('hint').hidden = false;
+
+  mindar = new MindARThree({
+    container: $('ar'),
+    imageTargetSrc: 'p02.mind',
+    uiScanning: 'no',
+    filterMinCF: 0.0001,
+    filterBeta: 0.001,
+  });
+  const { renderer, scene, camera } = mindar;
+
+  const tex = new THREE.VideoTexture(video);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0 });
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(1, VIDEO_H), mat);
+  const anchor = mindar.addAnchor(0);
+  anchor.group.add(plane);
+
+  anchor.onTargetFound = () => {
+    visible = true;
+    $('hint').hidden = true;
+    if (video.ended) video.currentTime = 0;
+    video.play().catch(() => {});
+  };
+  anchor.onTargetLost = () => {
+    visible = false;
+    $('hint').hidden = false;
+    video.pause();
+  };
+  video.addEventListener('ended', () => { $('replay').hidden = false; });
+
+  try {
+    await mindar.start();
+  } catch (e) {
+    $('hint').innerHTML = '無法開啟相機。請確認已允許相機權限，並用 https 網址開啟。';
+    return;
+  }
+  const clock = new THREE.Clock();
+  renderer.setAnimationLoop(() => {
+    const dt = clock.getDelta();
+    fade = Math.max(0, Math.min(1, fade + (visible ? dt : -dt) / 0.6));
+    mat.opacity = fade;
+    const text = visible ? captionAt(video.currentTime) : '';
+    capEl.hidden = !text;
+    if (capEl.textContent !== text) capEl.textContent = text;
+    renderer.render(scene, camera);
+  });
+});
+
+$('replay').addEventListener('click', () => {
+  video.currentTime = 0;
+  video.play();
+  $('replay').hidden = true;
+});
+$('mute').addEventListener('click', () => {
+  video.muted = !video.muted;
+  $('mute').textContent = video.muted ? '🔇 聲音關' : '🔊 聲音開';
+});
+$('exit').addEventListener('click', async () => {
+  if (mindar) { mindar.renderer.setAnimationLoop(null); await mindar.stop(); $('ar').innerHTML = ''; }
+  if (video) video.pause();
+  ['ar', 'hud', 'hint', 'cap', 'replay'].forEach(id => $(id).hidden = true);
+  $('intro').hidden = false;
+  visible = false; fade = 0;
+});
+</script>
+</body>
+</html>
