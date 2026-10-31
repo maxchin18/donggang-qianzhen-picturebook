@@ -63,6 +63,16 @@ ol li::marker{color:var(--coral);font-weight:700}
 #hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:4;width:min(80vw,420px);text-align:center;
   background:#082c57d9;border-radius:16px;padding:16px;color:#fff;pointer-events:none}
 #hint .frame{width:70%;aspect-ratio:3/2;margin:0 auto 10px;border:3px dashed var(--sand);border-radius:8px}
+/* 電腦開啟時：QR 讓手機接手；LINE 等內建瀏覽器提示 */
+.handoff{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:#ffffff12;border:1px solid #ffffff26;border-radius:16px;padding:14px}
+.handoff .qr{background:#fff;padding:8px;border-radius:8px;line-height:0}
+.handoff p{flex:1;min-width:180px}
+.warn{background:var(--sand);color:var(--ink);border-radius:14px;padding:12px 14px;font-weight:500}
+.warn a{color:var(--ink);font-weight:700}
+#err{position:fixed;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;background:var(--abyss);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#err .box{width:min(520px,100%);display:flex;flex-direction:column;gap:14px}
+#err h2{font-family:var(--display);font-size:1.5rem}
 @media (prefers-reduced-motion:reduce){.page video{transition:none}}
 </style>
 <script type="importmap">
@@ -85,6 +95,11 @@ ol li::marker{color:var(--coral);font-weight:700}
       <li>按「開始 AR」，允許使用相機。</li>
       <li>把整頁放進畫面裡，稍微保持穩定，畫就會開始動。</li>
     </ol>
+    <p class="warn" id="inapp" hidden>您正在 LINE 或其他 App 裡開啟，相機可能無法使用。請<a id="extLink" href="#">點這裡改用瀏覽器開啟</a>，或點右上角選單選「用預設瀏覽器開啟」。</p>
+    <div class="handoff" id="handoff" hidden>
+      <div class="qr" id="qr"></div>
+      <p><strong>建議用手機掃描 QR Code 開啟。</strong>電腦大多沒有後鏡頭，用手機對準紙本效果最好。您也可以把這台電腦的螢幕打開第 2 頁大圖，再用手機對準螢幕。</p>
+    </div>
     <div class="actions">
       <button class="btn main" id="startAR" type="button">開始 AR</button>
       <button class="btn ghost" id="showPreview" type="button">沒有紙本？先看預覽</button>
@@ -112,7 +127,16 @@ ol li::marker{color:var(--coral);font-weight:700}
 </div>
 <div id="hint" hidden><div class="frame"></div>把繪本第 2 頁整頁放進畫面</div>
 <div id="cap" hidden></div>
+<div id="err" hidden><div class="box">
+  <h2>相機沒有打開</h2>
+  <p id="errMsg"></p>
+  <div class="actions">
+    <button class="btn main" id="errPreview" type="button">改看預覽</button>
+    <button class="btn ghost" id="errBack" type="button">返回</button>
+  </div>
+</div></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { MindARThree } from 'mindar-image-three';
@@ -133,6 +157,46 @@ function captionAt(t) {
   const c = CAPS.find(([a, b]) => t >= a && t <= b);
   return c ? c[2] : '';
 }
+
+// ---------- 開啟環境判斷 ----------
+const ua = navigator.userAgent;
+const inApp = /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(ua);
+const isPhone = /Android|iPhone|iPad|iPod/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+const pageUrl = location.origin + location.pathname;
+if (inApp) {
+  $('inapp').hidden = false;
+  $('extLink').href = pageUrl + '?openExternalBrowser=1';
+}
+if (!isPhone) {
+  $('handoff').hidden = false;
+  try { new QRCode($('qr'), { text: pageUrl + '?openExternalBrowser=1', width: 132, height: 132 }); }
+  catch (e) { $('qr').hidden = true; }
+}
+
+function cameraHelp(err) {
+  const name = err && err.name;
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') return '這個網址不是 https 開頭，瀏覽器不允許使用相機。';
+  if (inApp) return '在 LINE 或其他 App 裡面無法使用相機。請改用手機的 Safari 或 Chrome 開啟這個網址。';
+  if (name === 'NotAllowedError' || name === 'SecurityError') return isPhone
+    ? '相機權限被拒絕了。請點網址列旁的「aA」或鎖頭圖示，把相機改成「允許」，再重新整理頁面。'
+    : '相機權限被拒絕了。請點網址列左邊的圖示，把相機改成「允許」後重新整理。也可以直接用手機掃描上一頁的 QR Code。';
+  if (name === 'NotFoundError' || name === 'OverconstrainedError' || name === 'DevicesNotFoundError') return '這台裝置找不到相機。請改用手機開啟，掃描上一頁的 QR Code 就能直接打開。';
+  if (name === 'NotReadableError') return '相機正被其他程式使用中（例如視訊會議）。請先關掉那個程式再試一次。';
+  if (!navigator.mediaDevices) return '這個瀏覽器不支援相機。請改用手機的 Safari 或 Chrome 開啟。';
+  return '請確認已允許相機權限，或改用手機開啟。';
+}
+function showError(err) {
+  $('errMsg').textContent = cameraHelp(err);
+  ['ar', 'hud', 'hint', 'cap'].forEach(id => $(id).hidden = true);
+  $('err').hidden = false;
+}
+$('errBack').addEventListener('click', () => { location.reload(); });
+$('errPreview').addEventListener('click', () => {
+  $('err').hidden = true;
+  $('intro').hidden = false;
+  $('preview').hidden = false;
+  $('preview').scrollIntoView({ block: 'start' });
+});
 
 // ---------- 預覽模式 ----------
 $('showPreview').addEventListener('click', () => {
@@ -163,7 +227,20 @@ $('startAR').addEventListener('click', async () => {
   video.setAttribute('playsinline', '');
   video.crossOrigin = 'anonymous';
   video.preload = 'auto';
-  try { await video.play(); video.pause(); video.currentTime = 0; } catch (e) { /* 之後對準時再播 */ }
+  const unlock = video.play().then(() => { video.pause(); video.currentTime = 0; }).catch(() => { /* 之後對準時再播 */ });
+
+  // 先自己試開相機，才能知道失敗原因
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw { name: 'Unsupported' };
+    const test = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    test.getTracks().forEach(t => t.stop());
+  } catch (e) {
+    video.pause();
+    showError(e);
+    return;
+  }
+
+  await unlock;
 
   $('intro').hidden = true;
   $('ar').hidden = false;
@@ -202,7 +279,9 @@ $('startAR').addEventListener('click', async () => {
   try {
     await mindar.start();
   } catch (e) {
-    $('hint').innerHTML = '無法開啟相機。請確認已允許相機權限，並用 https 網址開啟。';
+    if (mindar) { try { await mindar.stop(); } catch (_) {} }
+    $('ar').innerHTML = '';
+    showError(e);
     return;
   }
   const clock = new THREE.Clock();
