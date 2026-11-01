@@ -56,7 +56,7 @@ async def main():
         film[0].save(out/'live-motion.webp',save_all=True,append_images=film[1:],duration=duration,loop=0,quality=85)
         await page.evaluate('''async maskURL=>{
           const p=__preview;p.renderer.setAnimationLoop(null);p.audio.pause();document.querySelector('#pvCap').hidden=true;
-          const mod=await import('./source-boat.js?v=continuous-1');window.__probes={};
+          const mod=await import('./source-boat.js?v=rigid-2');window.__probes={};
           for(const part of ['fish','head']){__probes[part]=[await mod.makeCoverageProbe(p.cast.boat,part,false,part==='head'?maskURL:null),await mod.makeCoverageProbe(p.cast.boat,part,true,part==='head'?maskURL:null)];
             __probes[part].forEach(m=>{m.visible=false;(part==='fish'?p.cast.boat.catchPivot:p.cast.boat.holder).add(m);});}
           window.__blackOccluder=mod.makeBlackOccluder(p.cast.boat);

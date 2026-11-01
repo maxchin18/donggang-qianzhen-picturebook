@@ -1,5 +1,7 @@
 # 本輪素材與提示詞
 
+2026-11-02：船殼／鮪魚殘影修正沿用以下既有補底與完整魚形，沒有新增生成式素材；修正在材質快取鍵、船體內部分界與動作權重。新驗證見 [船殼與殘影報告](verification/2026-11-02-hull-wake.md)。
+
 ## 2026-11-01 船邊鮪魚補底修正
 
 使用**內建 imagegen**，參考／編輯目標為 `assets/pages/p02.webp`，透明背景 false。生成輸出為 `C:\Users\maxch\.codex\generated_images\01a19643-f544-72d1-9f6b-49e3a15917d9\exec-5fd4fa47-28a4-4f69-8987-61a9006c4ae1.png`；保留一份於本機 `.ar-qa/catch-integrity/catch-background-generated.png`。轉成 1536×1024、quality 93 的 `ar/p02/catch-background.webp` 作網站素材。

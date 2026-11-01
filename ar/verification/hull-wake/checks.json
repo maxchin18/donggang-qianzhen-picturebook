@@ -1,0 +1,30 @@
+{
+  "scope": "Local desktop Chromium; see report for limits",
+  "orders": [
+    {
+      "order": "negative-control",
+      "meanRGBError": 100.81359262945665,
+      "maxRGBError": 253,
+      "roiPixels": 26122
+    },
+    {
+      "order": "distant-first",
+      "meanRGBError": 1.2760635990097746e-05,
+      "maxRGBError": 1,
+      "roiPixels": 26122
+    },
+    {
+      "order": "main-first",
+      "meanRGBError": 3.828190797029324e-05,
+      "maxRGBError": 1,
+      "roiPixels": 26122
+    }
+  ],
+  "rigidTriangles": 20033,
+  "rigidFrames": 96,
+  "maxRigidRGBChange": 1,
+  "trailFrames": 16,
+  "maxFishAndWakeDifference": 1,
+  "errors": [],
+  "httpFailures": []
+}
