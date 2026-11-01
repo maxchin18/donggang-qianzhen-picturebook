@@ -165,9 +165,8 @@ const CAPS = [
 // x, y, w, h：角色在原畫上的位置與大小；path：跳出後的繞行路線
 const CHARS = [
   { id: 'boat2',    kind: 'stand', x: 0.305,  y: 0.1497,  w: 0.2585, h: 0.1576, z: 0.01, delay: 0.0 },
-  { id: 'crew',     kind: 'stand', x: -0.0934, y: 0.11,   w: 0.2207, h: 0.2227, z: 0.03, delay: 0.3 },
   { id: 'tuna_big', kind: 'fish',  x: -0.2216, y: -0.1755, w: 0.3783, h: 0.1621, delay: 0.6,
-    path: { cx: -0.02, cy: -0.13, rx: 0.32, ry: 0.11, z: 0.16, period: 16, phase: 3.4 } },
+    path: { cx: 0.0, cy: -0.17, rx: 0.32, ry: 0.09, z: 0.12, period: 16, phase: 3.4 } },
   { id: 'tuna_m',   kind: 'fish',  x: 0.2044, y: -0.2233, w: 0.2005, h: 0.1146, delay: 0.9,
     path: { cx: 0.08, cy: -0.2, rx: 0.26, ry: 0.07, z: 0.1, period: 12, phase: 0.2 } },
   { id: 'tuna_r',   kind: 'fish',  x: 0.4228, y: -0.1429, w: 0.1322, h: 0.0775, delay: 1.2,
@@ -209,8 +208,138 @@ function addLights(parent) {
   parent.add(sun);
 }
 
+// 由原畫輪廓做出的立體網格（寬度 = w）
+async function artMesh(id, w, fish) {
+  const meshes = await loadMeshes(), m = meshes[id];
+  const tex = await loader.loadAsync(`p02/${id}.png`);
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(b64(m.p, Float32Array), 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(b64(m.u, Float32Array), 2));
+  geo.setIndex(new THREE.BufferAttribute(b64(m.i, m.i32 ? Uint32Array : Uint16Array), 1));
+  geo.computeVertexNormals();
+  geo.scale(w, w, w);
+  const uniforms = { uTime: { value: 0 }, uAmp: { value: fish ? w * m.ratio * 0.16 : 0 } };
+  const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0, alphaTest: 0.35, side: THREE.DoubleSide });
+  if (fish) wiggle(mat, uniforms);
+  return { mesh: new THREE.Mesh(geo, mat), uniforms };
+}
+
+// ---------- 3D 漁船與三位漁夫（原畫被船身擋住，改用完整的立體模型） ----------
+const BOAT = { x: -0.2, y: 0.17, delay: 0.2 };
+function paperMat(color, extra = {}) {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, flatShading: true, ...extra });
+}
+function box(w, d, h, color) { return new THREE.Mesh(new THREE.BoxGeometry(w, d, h), paperMat(color)); }
+
+function makeFisherman(o) {
+  // o: { shirt, overall, cap, helmet }；面向 -y（船舷外、讀者這一側）
+  const f = new THREE.Group();
+  const skin = 0xe2a877;
+  for (const sx of [-1, 1]) {
+    const boot = box(0.011, 0.016, 0.012, 0x22262c); boot.position.set(sx * 0.0065, -0.002, 0.006); f.add(boot);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.0062, 0.0068, 0.026, 8), paperMat(o.overall));
+    leg.rotation.x = Math.PI / 2; leg.position.set(sx * 0.0065, 0, 0.025); f.add(leg);
+  }
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.0115, 0.012, 0.03, 10), paperMat(o.shirt));
+  torso.rotation.x = Math.PI / 2; torso.position.z = 0.052; f.add(torso);
+  const bib = box(0.02, 0.006, 0.026, o.overall); bib.position.set(0, -0.009, 0.048); f.add(bib);
+  const hip = new THREE.Mesh(new THREE.CylinderGeometry(0.0125, 0.0125, 0.01, 10), paperMat(o.overall));
+  hip.rotation.x = Math.PI / 2; hip.position.z = 0.038; f.add(hip);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.0105, 12, 10), paperMat(skin)); head.position.z = 0.0775; f.add(head);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.0112, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), paperMat(o.cap));
+  cap.rotation.x = Math.PI / 2; cap.position.z = 0.08; f.add(cap);
+  if (!o.helmet) { const brim = box(0.014, 0.012, 0.002, o.cap); brim.position.set(0, -0.012, 0.081); f.add(brim); }
+  const arms = [];
+  for (const sx of [-1, 1]) {
+    const sh = new THREE.Group(); sh.position.set(sx * 0.0135, -0.002, 0.064);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.0042, 0.0042, 0.026, 6), paperMat(o.shirt));
+    arm.rotation.x = Math.PI / 2; arm.position.z = -0.013; sh.add(arm);
+    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 8, 6), paperMat(0x2f6fd0)); glove.position.z = -0.027; sh.add(glove);
+    f.add(sh); arms.push(sh);
+  }
+  f.userData.arms = arms;
+  return f;
+}
+
+async function buildBoat(parent, fishMaker) {
+  const L = 0.4, W = 0.12, D = 0.07;           // 船長、船寬、甲板高度
+  const boat = new THREE.Group();
+  const hullShape = new THREE.Shape();
+  hullShape.moveTo(-L / 2, 0.016); hullShape.lineTo(L * 0.32, 0.004);
+  hullShape.quadraticCurveTo(L * 0.5, 0.006, L * 0.56, D + 0.012); hullShape.lineTo(-L / 2, D); hullShape.closePath();
+  const hullGeo = new THREE.ExtrudeGeometry(hullShape, { depth: W, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.004, bevelSegments: 2 });
+  hullGeo.rotateX(Math.PI / 2); hullGeo.translate(0, W / 2, 0);
+  boat.add(new THREE.Mesh(hullGeo, paperMat(0xf6f3ea)));
+  const stripe = box(L * 0.98, W + 0.016, 0.012, 0x1f4fa8); stripe.position.set(0.0, 0, D - 0.022); boat.add(stripe);
+  const keel = box(L * 0.78, W + 0.012, 0.012, 0xc8402e); keel.position.set(-0.02, 0, 0.014); boat.add(keel);
+  const deck = box(L * 0.96, W * 0.94, 0.005, 0xcfc7b4); deck.position.set(0.005, 0, D); boat.add(deck);
+  for (const sy of [-1, 1]) { const rail = box(L * 0.9, 0.003, 0.016, 0xffffff); rail.position.set(0.01, sy * W * 0.47, D + 0.012); boat.add(rail); }
+  const cabin = box(0.11, W * 0.8, 0.065, 0xffffff); cabin.position.set(-L / 2 + 0.07, 0, D + 0.034); boat.add(cabin);
+  const roof = box(0.12, W * 0.84, 0.008, 0x2a5fb0); roof.position.set(-L / 2 + 0.07, 0, D + 0.07); boat.add(roof);
+  for (const sx of [-0.03, 0, 0.03]) { const win = box(0.02, 0.003, 0.016, 0x203048); win.position.set(-L / 2 + 0.07 + sx, -W * 0.41, D + 0.045); boat.add(win); }
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.012, 0.004, 6, 14), paperMat(0xff6a2a));
+  ring.position.set(-L / 2 + 0.03, -W * 0.41 - 0.003, D + 0.03); ring.rotation.x = Math.PI / 2; boat.add(ring);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.2, 6), paperMat(0xdddddd));
+  mast.rotation.x = Math.PI / 2; mast.position.set(-0.04, 0, D + 0.1); boat.add(mast);
+  const boom = box(0.3, 0.003, 0.003, 0xdddddd); boom.position.set(0.03, 0, D + 0.17); boat.add(boom);
+  const lampMat = paperMat(0xfff4cc, { emissive: 0xffe9a8, emissiveIntensity: 0.9 });
+  for (let i = 0; i < 8; i++) {
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.0085, 10, 8), lampMat);
+    lamp.position.set(-0.1 + i * 0.037, 0, D + 0.155); boat.add(lamp);
+  }
+  const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.04, 14), paperMat(0x2e8b57));
+  reel.position.set(-0.07, W * 0.18, D + 0.022); boat.add(reel);
+  for (const [x, y, c] of [[0.14, 0.03, 0xf2c230], [0.12, -0.02, 0x2e7fd0], [0.16, -0.01, 0xf2c230]]) {
+    const crate = box(0.022, 0.022, 0.016, c); crate.position.set(x, y, D + 0.01); boat.add(crate);
+  }
+  // 三位漁夫（顏色取自原畫）
+  const crew = [
+    makeFisherman({ shirt: 0x2f5aa8, overall: 0xf2c22e, cap: 0x2f5aa8 }),
+    makeFisherman({ shirt: 0xf4f1ea, overall: 0xf07a2a, cap: 0xf6f6f6, helmet: true }),
+    makeFisherman({ shirt: 0x2f5aa8, overall: 0xf2c22e, cap: 0x3a8a4a }),
+  ];
+  crew.forEach((f, i) => { f.position.set(-0.03 + i * 0.055, -W * 0.22, D + 0.003); boat.add(f); });
+  // 被拉上船的黑鮪魚（掛在船舷外）
+  const tuna = await fishMaker('tuna_big', 0.15);
+  const tunaHolder = new THREE.Group();
+  tunaHolder.position.set(0.025, -W / 2 - 0.035, D * 0.6);
+  tunaHolder.rotation.set(Math.PI / 2, 0, 0);
+  tuna.mesh.rotation.z = 1.25;                  // 頭朝上
+  tunaHolder.add(tuna.mesh); boat.add(tunaHolder);
+  const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+  const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xeeeeee }));
+  boat.add(line);
+
+  const holder = new THREE.Group(); holder.add(boat);
+  holder.position.set(BOAT.x, BOAT.y, 0);
+  parent.add(holder);
+  const v1 = new THREE.Vector3(), v2 = new THREE.Vector3();
+  return {
+    update(t) {
+      const k = ease((t - BOAT.delay) / RISE), tt = Math.max(0, t - BOAT.delay);
+      const s = Math.max(0.001, k);
+      holder.scale.set(s, s, s);
+      holder.position.z = 0.01 * k + Math.sin(tt * 1.6) * 0.004 * k;
+      holder.rotation.set(Math.sin(tt * 1.3) * 0.05 * k, Math.sin(tt * 0.9) * 0.025 * k, 0);
+      crew.forEach((f, i) => {
+        const pull = Math.sin(tt * 2.6 + i * 0.9);
+        f.rotation.x = 0.12 + pull * 0.1;                     // 身體往後仰著拉
+        f.userData.arms.forEach(a => { a.rotation.x = -1.2 - pull * 0.35; });
+      });
+      tunaHolder.position.z = D * 0.55 + Math.sin(tt * 2.6) * 0.02;
+      tuna.uniforms.uTime.value = tt * 1.6;                   // 魚掙扎擺動
+      tuna.mesh.rotation.z = 1.25 + Math.sin(tt * 5) * 0.12;
+      crew[1].userData.arms[0].getWorldPosition(v1); boat.worldToLocal(v1);
+      tunaHolder.getWorldPosition(v2); boat.worldToLocal(v2); v2.z += 0.06;
+      lineGeo.attributes.position.setXYZ(0, v1.x, v1.y - 0.02, v1.z - 0.03);
+      lineGeo.attributes.position.setXYZ(1, v2.x, v2.y, v2.z);
+      lineGeo.attributes.position.needsUpdate = true;
+    },
+  };
+}
+
 async function buildCast(parent) {
-  const meshes = await loadMeshes();
   addLights(parent);
   const shadowTex = (() => {
     const c = document.createElement('canvas'); c.width = c.height = 64;
@@ -221,19 +350,7 @@ async function buildCast(parent) {
   })();
   const cast = [];
   for (const def of CHARS) {
-    const m = meshes[def.id];
-    const tex = await loader.loadAsync(`p02/${def.id}.png`);
-    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(b64(m.p, Float32Array), 3));
-    geo.setAttribute('uv', new THREE.BufferAttribute(b64(m.u, Float32Array), 2));
-    geo.setIndex(new THREE.BufferAttribute(b64(m.i, m.i32 ? Uint32Array : Uint16Array), 1));
-    geo.computeVertexNormals();
-    geo.scale(def.w, def.w, def.w);             // 依原畫大小縮放（寬度 = def.w）
-    const uniforms = { uTime: { value: 0 }, uAmp: { value: def.kind === 'fish' ? def.h * 0.16 : 0 } };
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0, alphaTest: 0.35, side: THREE.DoubleSide });
-    if (def.kind === 'fish') wiggle(mat, uniforms);
-    const body = new THREE.Mesh(geo, mat);
+    const { mesh: body, uniforms } = await artMesh(def.id, def.w, def.kind === 'fish');
     const pivot = new THREE.Group();            // 控制「站起來」的角度
     const holder = new THREE.Group();           // 控制位置與方向
     pivot.add(body); holder.add(pivot);
@@ -242,11 +359,13 @@ async function buildCast(parent) {
     parent.add(shadow, holder);
     cast.push({ def, holder, pivot, body, shadow, uniforms, heading: 0 });
   }
+  cast.boat = await buildBoat(parent, (id, w) => artMesh(id, w, true));
   return cast;
 }
 
 // 每一格更新角色：t = 出場後經過的秒數
 function updateCast(cast, t) {
+  if (cast.boat) cast.boat.update(t);
   for (const c of cast) {
     const { def, holder, pivot, body, shadow, uniforms } = c;
     const k = ease((t - def.delay) / RISE);
@@ -366,6 +485,8 @@ $('pvPlay').addEventListener('click', async () => {
     const cast = await buildCast(page);
     const audio = pvAudio;
     preview = { renderer, scene, camera, page, cast, t0: performance.now() };
+    window.__preview = preview;
+    window.__upd = t => updateCast(cast, t);
     new ResizeObserver(() => {
       renderer.setSize(stage.clientWidth, stage.clientHeight);
       camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix();
