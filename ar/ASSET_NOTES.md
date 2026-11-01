@@ -1,5 +1,15 @@
 # 本輪素材與提示詞
 
+## 2026-11-01 船邊鮪魚補底修正
+
+使用**內建 imagegen**，參考／編輯目標為 `assets/pages/p02.webp`，透明背景 false。生成輸出為 `C:\Users\maxch\.codex\generated_images\01a19643-f544-72d1-9f6b-49e3a15917d9\exec-5fd4fa47-28a4-4f69-8987-61a9006c4ae1.png`；保留一份於本機 `.ar-qa/catch-integrity/catch-background-generated.png`。轉成 1536×1024、quality 93 的 `ar/p02/catch-background.webp` 作網站素材。
+
+此圖只在舊船邊魚輪廓及少量邊緣補底範圍內取樣，修復移除魚後露出的船身及海面。shader 保留藍色手套；人物臉孔、帽子、船型、其餘原畫表面仍取自原始 `p02.webp`。整隻船邊魚使用既有 `tuna_complete` 封閉網格，沒有再次生成新魚或新人物。
+
+本輪完整提示詞：
+
+> Precise object removal for a children's watercolor picturebook AR texture. Edit the provided original 1536x1024 illustration. Remove ONLY the large tuna being hauled up alongside the FRONT LEFT fishing boat, the diagonal fish with its head near pixel (552,290) and tail near (742,505). Reconstruct the ship hull, white hull and navy blue stripe, small deck areas, ocean water and foam that were hidden directly behind this one fish. Keep ALL three original fishermen exactly where they are, with identical faces, hats, clothing, body poses, hands and gloves; keep their gloves and hands even where they rest on the removed fish. Keep all poles, ropes, lamps, two fishing boats, gulls, background and the THREE underwater fish entirely unchanged. Preserve original colors, paint texture, composition and exact image alignment. No new objects, fish or characters. The result is used ONLY inside the removed tuna silhouette as a background repair; unaffected pixels should remain identical. Full 3:2 page, no crop, no text or border.
+
 > **最新船與船員（2026-11-01）：** 船與五位船員現在直接使用 `assets/pages/p02.webp` 原圖，由 `ar/source-boat.js` 的輪廓、原座標 UV 與封閉圓弧厚度呈現；本輪沒有新增生成式人物／船舶素材，沒有重畫原圖。以下 imagegen 紀錄仍適用於既有完整鮪魚與海面清底。
 
 2026-11-01，使用 **內建 imagegen**（未使用 API/CLI）。原畫、舊角色切圖保留；新素材存入專案，網站不依賴 Codex 生成暫存目錄。
