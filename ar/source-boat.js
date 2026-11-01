@@ -8,6 +8,10 @@ const decode=(s,T)=>{const raw=atob(s),bytes=new Uint8Array(raw.length);for(let 
 const ready=t=>{const k=Math.max(0,Math.min(1,t/2.2));return k*k*(3-2*k);};
 
 function rigMaterial(mat,rig){
+  // onBeforeCompile.toString() is identical for both vessels, but the main
+  // boat has an additional fish-removal fragment shader. A shared default
+  // cache key could reuse the distant shader and leave the old tuna visible.
+  mat.customProgramCacheKey=()=>`source-boat-rigid-v2-${rig.distant?'distant':'main'}`;
   mat.onBeforeCompile=shader=>{
     shader.uniforms.uArtTime=rig.time;shader.uniforms.uArtReady=rig.ready;
     shader.uniforms.uArtCenter={value:rig.center};shader.uniforms.uDistant={value:rig.distant?1:0};
@@ -16,6 +20,7 @@ function rigMaterial(mat,rig){
     shader.vertexShader=`
       uniform float uArtTime,uArtReady,uDistant;
       uniform vec2 uArtCenter;
+      attribute vec4 artSkin;
       uniform vec4 uCrewPivot[3],uCrewField[3],uCrewPose[3],uCrewHands[3],uCrewHeads[3];
       vec2 sourceRotate(vec2 p,float a){return vec2(p.x*cos(a)-p.y*sin(a),p.x*sin(a)+p.y*cos(a));}
     `+shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
@@ -24,7 +29,7 @@ function rigMaterial(mat,rig){
       for(int i=0;i<3;i++){
         vec4 field=uCrewField[i];
         float radius=length((pixel-field.xy)/field.zw);
-        float weight=(1.0-smoothstep(1.02,1.65,radius))*uCrewPivot[i].z;
+        float weight=(1.0-smoothstep(1.02,1.65,radius))*uCrewPivot[i].z*artSkin[i];
         for(int j=0;j<3;j++){
           float head=(1.0-smoothstep(1.0,1.25,length((pixel-uCrewHeads[j].xy)/uCrewHeads[j].zw)))*uCrewPivot[j].z;
           protectedHead=max(protectedHead,head);if(j!=i)weight*=1.0-head;
@@ -38,7 +43,7 @@ function rigMaterial(mat,rig){
         lift+=(.065*uArtReady+uCrewPose[i].z*.003)*grip;
       }
       float lamps=exp(-pow((pixel.y-(uDistant>.5?271.0:190.0))/29.0,2.0));
-      moved.x+=sin(uArtTime*1.3+pixel.x*.012)*.9*lamps*(1.0-protectedHead)*uArtReady;
+      moved.x+=sin(uArtTime*1.3+pixel.x*.012)*.9*lamps*(1.0-protectedHead)*uArtReady*artSkin.w;
       transformed.xy=vec2((moved.x-uArtCenter.x)/1536.0,(uArtCenter.y-moved.y)/1536.0);
       transformed.z+=lift;
     `);
@@ -62,12 +67,13 @@ function rigMaterial(mat,rig){
 
 export async function buildSourceBoat(parent,distant=false,fishMaker=null){
   if(!artwork)artwork=new THREE.TextureLoader().loadAsync('../assets/pages/p02.webp').then(t=>{t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=4;return t;}).catch(e=>{artwork=null;throw e;});
-  if(!meshData)meshData=fetch('p02/source-boat-meshes.json?v=continuous-1').then(r=>{if(!r.ok)throw new Error(`Source mesh HTTP ${r.status}`);return r.json();}).catch(e=>{meshData=null;throw e;});
+  if(!meshData)meshData=fetch('p02/source-boat-meshes.json?v=rigid-2').then(r=>{if(!r.ok)throw new Error(`Source mesh HTTP ${r.status}`);return r.json();}).catch(e=>{meshData=null;throw e;});
   if(!repairImage)repairImage=new THREE.TextureLoader().loadAsync('p02/catch-background.webp').then(t=>{t.colorSpace=THREE.SRGBColorSpace;return t;}).catch(e=>{repairImage=null;throw e;});
   const [texture,data,repair]=await Promise.all([artwork,meshData,repairImage]),m=data[distant?'distant':'main'];
   const geometry=new THREE.BufferGeometry();
   geometry.setAttribute('position',new THREE.BufferAttribute(decode(m.p,Float32Array),3));
   geometry.setAttribute('uv',new THREE.BufferAttribute(decode(m.u,Float32Array),2));
+  geometry.setAttribute('artSkin',new THREE.BufferAttribute(decode(m.s,Float32Array),4));
   geometry.setIndex(new THREE.BufferAttribute(decode(m.i,m.i32?Uint32Array:Uint16Array),1));
   geometry.addGroup(0,m.frontCount,0);geometry.addGroup(m.frontCount,geometry.index.count-m.frontCount,1);
   geometry.computeVertexNormals();geometry.userData.closed=true;
@@ -95,14 +101,18 @@ export async function buildSourceBoat(parent,distant=false,fishMaker=null){
     catchPivot.position.set((550-m.center[0])/1536,(m.center[1]-288)/1536,.110);
     caught.mesh.position.x=-.215*.47;caught.mesh.scale.y=-1;caught.mesh.name='whole-hauled-tuna';caught.uniforms.uAmp.value*=.4;
   }
-  return {holder,boat,crew,texture,repair,pieces:[boat],tuna:caught?.mesh,catchPivot,caughtUniforms:caught?.uniforms,sourceCenter:m.center,
+  return {holder,boat,crew,texture,repair,sourceData:m,pieces:[boat],tuna:caught?.mesh,catchPivot,caughtUniforms:caught?.uniforms,sourceCenter:m.center,
     rig,landmarks:m.landmarks,fishOutline:m.fishOutline,headOutline:m.headOutline,fishing:{source:true},
     update(t){
       const k=ready(t);rig.time.value=Math.max(0,t);rig.ready.value=k;
       holder.position.z=.042*k+Math.sin(t*1.25)*.0025*k;
       holder.rotation.z=Math.sin(t*.85)*.003*k;
       if(caught){catchPivot.rotation.set(Math.sin(t*2.4)*.025*k,Math.sin(t*1.9)*.025*k,2.28+Math.sin(t*2.0)*.025*k);caught.uniforms.uTime.value=t*.55;}
-      if(caught){catchPivot.scale.setScalar(Math.max(.001,k));caught.mesh.material.transparent=true;caught.mesh.material.opacity=k;}
+      if(caught){
+        catchPivot.scale.setScalar(Math.max(.001,k));const material=caught.mesh.material;
+        if(material.transparent!==(k<1)){material.transparent=k<1;material.needsUpdate=true;}
+        material.opacity=k;
+      }
       crew.forEach((bone,i)=>{
         const pull=Math.sin(t*1.8+i*.3);
         bone.rotation.z=pull*(distant?.045:.080)*k;
@@ -123,16 +133,37 @@ export async function makeCoverageProbe(art,part,reference=false,maskDataUrl=nul
     material.color.set(0xffffff);material.onBeforeCompile=shader=>{
       configure(shader);shader.fragmentShader=shader.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\ngl_FragColor=vec4(1.0);');
     };
+    material.customProgramCacheKey=()=> 'catch-coverage-white-v2';
     const probe=new THREE.Mesh(art.tuna.geometry.clone(),material);
     probe.position.copy(art.tuna.position);probe.quaternion.copy(art.tuna.quaternion);probe.scale.copy(art.tuna.scale);
     probe.userData.coverageProbe=true;return probe;
   }
   const geometry=reference?new THREE.PlaneGeometry(1,1024/1536,384,256):art.boat.geometry.clone();
+  if(reference){
+    // Independent page grid gets weights interpolated from source semantic
+    // polygons, rather than copying the real surface's clipped geometry.
+    const shapes=art.sourceData;
+    const attr=geometry.attributes.uv,weights=new Float32Array(attr.count*4);
+    const inside=(p,polygon)=>{let hit=false;for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){
+      const a=polygon[i],b=polygon[j];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])hit=!hit;
+    }return hit;};
+    for(let i=0;i<attr.count;i++){
+      const p=[attr.getX(i)*1536,(1-attr.getY(i))*1024];
+      if(shapes.rigidShapes.some(poly=>inside(p,poly)))continue;
+      shapes.crewShapes.forEach((poly,j)=>{if(inside(p,poly))weights[i*4+j]=1;});
+      // Expected head pixels must remain fully animated even if the real
+      // outline accidentally clips a hat/nose, so do not crop this reference
+      // weight to the same person silhouette being tested.
+      art.rig.heads.forEach((h,j)=>{if(j<art.crew.length&&Math.hypot((p[0]-h.x)/h.z,(p[1]-h.y)/h.w)<1.3)weights[i*4+j]=1;});
+    }
+    geometry.setAttribute('artSkin',new THREE.BufferAttribute(weights,4));
+  }
   const mat=new THREE.MeshBasicMaterial({map:art.texture,side:THREE.DoubleSide});
   rigMaterial(mat,art.rig);
   const maskTexture=maskDataUrl?await new THREE.TextureLoader().loadAsync(maskDataUrl):null;
   if(maskTexture){maskTexture.minFilter=maskTexture.magFilter=THREE.NearestFilter;}
   const configure=mat.onBeforeCompile,polygon=part==='fish'?art.fishOutline:art.headOutline;
+  mat.customProgramCacheKey=()=>`source-head-coverage-v2-${maskTexture?'bitmap':'polygon'}-${art.rig.distant?'distant':'main'}`;
   mat.onBeforeCompile=shader=>{
     configure(shader);
     const points=Array.from({length:64},(_,i)=>new THREE.Vector2(...(polygon[i]||[0,0])));
@@ -152,5 +183,6 @@ export async function makeCoverageProbe(art,part,reference=false,maskDataUrl=nul
 
 export function makeBlackOccluder(art){
   const material=new THREE.MeshBasicMaterial({map:art.texture});rigMaterial(material,art.rig);
+  material.customProgramCacheKey=()=>`source-boat-black-v2-${art.rig.distant?'distant':'main'}`;
   const configure=material.onBeforeCompile;material.onBeforeCompile=shader=>{configure(shader);shader.fragmentShader=shader.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\ngl_FragColor=vec4(0.0,0.0,0.0,1.0);');};return material;
 }

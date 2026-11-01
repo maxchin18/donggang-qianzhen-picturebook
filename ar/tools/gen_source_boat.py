@@ -10,6 +10,7 @@ import numpy as np
 import triangle
 from shapely.geometry import Polygon, LineString, Point
 from shapely.ops import unary_union
+from shapely import set_precision
 
 ROOT=Path(__file__).resolve().parents[2]
 SPEC=ROOT/'ar/p02/source-boat-shapes.json'
@@ -23,8 +24,9 @@ def ellipse(p):
 
 
 def build(name,d):
-    shapes=[Polygon(d[key]).buffer(0) for key in ['hull','cabin','stern','equipment']]
-    shapes += [Polygon(p).buffer(0) for p in d['crew']]
+    rigid=set_precision(unary_union([Polygon(d[key]).buffer(0) for key in ['hull','cabin','stern','equipment']]),.01)
+    people=[set_precision(Polygon(p).buffer(0),.01) for p in d['crew']]
+    shapes=[rigid,*people]
     # The hauled tuna is now a separate COMPLETE fish mesh. Do not leave its
     # old cropped tail/waves in the vessel surface.
     shapes += [LineString(p).buffer(w/2,cap_style='square',join_style='round') for p,w in d['poles']]
@@ -37,7 +39,7 @@ def build(name,d):
         for i,x in enumerate([149,205,260,313,367,418,469,517]):
             shapes.append(LineString([(x,271+i*10),(x-2,294+i*10)]).buffer(2))
     else: shapes.append(LineString([(1361,340),(1395,397),(1428,429)]).buffer(2))
-    union=unary_union(shapes).buffer(0)
+    union=set_precision(unary_union(shapes).buffer(0),.01)
     components=list(union.geoms) if union.geom_type=='MultiPolygon' else [union]
     # All anatomical landmarks must belong to the same connected painted region.
     landmarks=[[514,174],[492,191],[538,207],[527,218],[543,190],[548,200]] if name=='main' else []
@@ -47,16 +49,47 @@ def build(name,d):
     all_xy=[];all_tri=[]
     for poly in components:
         if poly.area<.05:continue
-        vertices=[];segments=[];holes=[]
-        for ring in [poly.exterior,*poly.interiors]:
-            pts=list(ring.coords)[:-1];start=len(vertices);vertices.extend(pts)
-            segments.extend((start+i,start+(i+1)%len(pts)) for i in range(len(pts)))
+        # Preserve the INTERNAL hull and person boundaries too. Without these
+        # constraints a triangle can carry a moving sleeve across painted hull
+        # pixels even when its hull-side vertex has zero skin weight.
+        lines=unary_union([poly.boundary,rigid.boundary.intersection(poly),
+                          *[p.boundary.intersection(poly) for p in people]])
+        vertices=[];segments=[];lookup={}
+        for line in (list(lines.geoms) if hasattr(lines,'geoms') else [lines]):
+            if line.geom_type!='LineString':continue
+            indices=[]
+            for x,y in line.coords:
+                key=(round(x,7),round(y,7))
+                if key not in lookup:lookup[key]=len(vertices);vertices.append((x,y))
+                indices.append(lookup[key])
+            segments.extend((a,b) for a,b in zip(indices,indices[1:]) if a!=b)
         holes=[list(Polygon(r).representative_point().coords)[0] for r in poly.interiors]
         data={'vertices':np.array(vertices),'segments':np.array(segments)}
         if holes:data['holes']=np.array(holes)
-        mesh=triangle.triangulate(data,'pq20a24Q')
+        # Internal crew/rigging intersections can make acute subpixel angles.
+        # Area refinement is sufficient here; angle refinement can endlessly
+        # split those constraints without improving a single rendered pixel.
+        mesh=triangle.triangulate(data,'pa24Q')
         offset=len(all_xy);all_xy.extend(mesh['vertices'].tolist());all_tri.extend((mesh['triangles']+offset).tolist())
     xy=np.array(all_xy);tri=np.array(all_tri,dtype=np.uint32)
+    # Semantic skin weights only cover the painted crew, never hull/cabin or
+    # the background around them. Blend at their fixed contact with the boat.
+    skin=np.zeros((len(xy),4),dtype='<f4');lamps=unary_union([ellipse(p) for p in d['lamps']])
+    rigid_skin=rigid.buffer(1e-6);person_skin=[p.buffer(1e-6) for p in people];lamp_skin=lamps.buffer(1e-6)
+    for i,(x,y) in enumerate(xy):
+        point=Point(x,y)
+        distance=rigid.distance(point)
+        if rigid_skin.covers(point) or distance<.02:continue
+        k=np.clip(distance/10,0,1);k=k*k*(3-2*k)
+        for j,person in enumerate(person_skin):
+            if person.covers(point) or person.distance(point)<.02:skin[i,j]=k
+        if not skin[i,:3].any() and (lamp_skin.covers(point) or lamp_skin.distance(point)<.02):skin[i,3]=1
+    # No triangle painted as rigid boat may be influenced by a crew member.
+    rigid_triangles=0
+    for indices in tri:
+        if rigid.contains(Point(*xy[indices].mean(axis=0))):
+            rigid_triangles+=1
+            assert np.max(skin[indices])==0,('Crew weights leaked into rigid hull',xy[indices].tolist(),skin[indices].tolist())
     # Continuous depth field, independent of the original cutout pieces.
     def gauss(cx,cy,rx,ry):return np.exp(-(((xy[:,0]-cx)/rx)**2+((xy[:,1]-cy)/ry)**2))
     if name=='main':
@@ -95,7 +128,9 @@ def build(name,d):
             tolerance+=.25;protected=protected.simplify(tolerance)
         fish_outline=[list(p) for p in list(protected.exterior.coords)[:-1]]
     head_outline=[[493, 182], [501, 175], [512, 171], [524, 170], [535, 173], [542, 178], [547, 185], [547, 193], [552, 198], [553, 203], [542, 203], [541, 209], [536, 215], [530, 219], [540, 225], [542, 233], [530, 226], [510, 218], [504, 207], [497, 199], [490, 195], [490, 188]] if name=='main' else []
-    return dict(p=enc(pos),u=enc(uv),i=enc(faces),i32=len(pos)>65535,frontCount=front_count,center=center,landmarks=landmarks,fishOutline=fish_outline,headOutline=head_outline,
+    print(f'  rigid triangles={rigid_triangles}, maximum rigid skin weight=0')
+    return dict(p=enc(pos),u=enc(uv),s=enc(np.concatenate((skin,skin))),i=enc(faces),i32=len(pos)>65535,frontCount=front_count,center=center,landmarks=landmarks,fishOutline=fish_outline,headOutline=head_outline,
+                rigidShapes=[d[key] for key in ['hull','cabin','stern','equipment']],crewShapes=d['crew'],
                 crew=[[505,330,510,248,68,115,532,276],[612,334,610,277,58,95,617,299],[716,350,715,299,58,98,714,334]] if name=='main' else [[1348,350,1346,320,30,55,1350,334],[1427,362,1428,332,30,55,1427,334]])
 
 
