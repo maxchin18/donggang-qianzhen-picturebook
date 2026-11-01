@@ -65,8 +65,10 @@ ol a{color:var(--sand)}
 #cap{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:5;
   width:min(92vw,720px);text-align:center;font-family:var(--display);font-size:clamp(1rem,4.2vw,1.35rem);
   background:#082c57d9;border-radius:14px;padding:8px 14px;color:#fff}
-#hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:4;width:min(80vw,420px);text-align:center;
+#hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);transition:top .3s,transform .3s;z-index:4;width:min(80vw,420px);text-align:center;
   background:#082c57d9;border-radius:16px;padding:16px;color:#fff;pointer-events:none}
+#hint.lost{top:auto;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);padding:10px 14px}
+#hint.lost .frame{display:none}
 #hint .frame{width:70%;aspect-ratio:3/2;margin:0 auto 10px;border:3px dashed var(--sand);border-radius:8px}
 .bigsound{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:7;border:0;border-radius:999px;
   padding:18px 34px;font-size:1.3rem;font-weight:700;background:var(--coral);color:#fff;box-shadow:0 12px 30px -10px #000}
@@ -100,7 +102,7 @@ ol a{color:var(--sand)}
     <ol>
       <li>翻到繪本第 2 頁（或在另一個螢幕打開<a href="../assets/pages/p02.webp" target="_blank" rel="noopener">第 2 頁大圖</a>）。</li>
       <li>按「開始 AR」，允許使用相機，並打開聲音。</li>
-      <li>把整頁放進畫面，手機稍微斜著看，角色會更立體。</li>
+      <li>手機<strong>橫著拿</strong>，把整頁放進畫面，稍微斜著看，角色會更立體。</li>
     </ol>
     <div class="handoff" id="handoff" hidden>
       <div class="qr" id="qr"></div>
@@ -132,11 +134,11 @@ ol a{color:var(--sand)}
     <button id="mute" type="button">🔊 聲音開</button>
   </span>
 </div>
-<div id="hint" hidden><div class="frame"></div>把繪本第 2 頁整頁放進畫面</div>
+<div id="hint" hidden><div class="frame"></div><span id="hintText">把繪本第 2 頁整頁放進畫面</span></div>
 <div id="cap" hidden></div>
 <button class="bigsound" id="sound" type="button" hidden>🔊 點我聽故事</button>
 <div id="pageView" hidden>
-  <img src="../assets/pages/p02.webp" alt="繪本第 2 頁">
+  <img data-src="../assets/pages/p02.webp" alt="繪本第 2 頁">
   <p>用另一支手機掃 QR Code 開啟 AR，再對準這個畫面</p>
   <button class="btn main" id="pageClose" type="button">關閉</button>
 </div>
@@ -201,11 +203,16 @@ function wiggle(mat, uniforms) {
   };
 }
 
+// 燈光跟著書頁走：主光與補光的 target 都放在同一個 parent 底下，
+// 不管書頁離相機多遠、怎麼轉，光都是從書頁「上方偏讀者那側」打下來
 function addLights(parent) {
-  parent.add(new THREE.HemisphereLight(0xffffff, 0x3a5a80, 2.4));
-  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  parent.add(new THREE.AmbientLight(0xffffff, 1.1));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.0);
   sun.position.set(-0.4, -0.6, 1.2);       // 從讀者這側的左上方打光，凸起處有明暗
-  parent.add(sun);
+  parent.add(sun, sun.target);
+  const fill = new THREE.DirectionalLight(0xcfe3ff, 0.7);
+  fill.position.set(0.6, 0.5, 0.8);        // 另一側淡淡的天空補光
+  parent.add(fill, fill.target);
 }
 
 // 由原畫輪廓做出的立體網格（寬度 = w）
@@ -273,7 +280,7 @@ async function buildBoat(parent, fishMaker) {
   boat.add(new THREE.Mesh(hullGeo, paperMat(0xf6f3ea)));
   const stripe = box(L * 0.98, W + 0.016, 0.012, 0x1f4fa8); stripe.position.set(0.0, 0, D - 0.022); boat.add(stripe);
   const keel = box(L * 0.78, W + 0.012, 0.012, 0xc8402e); keel.position.set(-0.02, 0, 0.014); boat.add(keel);
-  const deck = box(L * 0.96, W * 0.94, 0.005, 0xcfc7b4); deck.position.set(0.005, 0, D); boat.add(deck);
+  const deck = box(L * 0.96, W * 0.94, 0.005, 0x9c7b55); deck.position.set(0.005, 0, D); boat.add(deck);
   for (const sy of [-1, 1]) { const rail = box(L * 0.9, 0.003, 0.016, 0xffffff); rail.position.set(0.01, sy * W * 0.47, D + 0.012); boat.add(rail); }
   const cabin = box(0.11, W * 0.8, 0.065, 0xffffff); cabin.position.set(-L / 2 + 0.07, 0, D + 0.034); boat.add(cabin);
   const roof = box(0.12, W * 0.84, 0.008, 0x2a5fb0); roof.position.set(-L / 2 + 0.07, 0, D + 0.07); boat.add(roof);
@@ -386,9 +393,11 @@ function updateCast(cast, t) {
     c.heading += d * Math.min(1, 0.06 + 0.1 * k) * k;
     holder.position.set(x, y, z + 0.002);
     holder.rotation.set(0, 0, c.heading);
-    // 站起來：平躺在紙上（0）→ 直立（π/2）；海鷗保持略為傾斜，從上面也看得到翅膀
-    const up = def.kind === 'bird' ? 1.0 : Math.PI / 2;
-    pivot.rotation.set(up * k, 0, 0);
+    // 浮起來：平躺在紙上（0）→ 側起；手機多半從上往下看，所以不直立
+    const up = def.kind === 'bird' ? 1.0 : 0.45;   // 魚只微微側起，從上往下看也是完整的魚身
+    // 魚掉頭往回游時，側起的方向跟著反過來，讓讀者（書頁下緣）一直看到魚的側面，不會看到背上的接縫
+    const lean = def.kind === 'bird' ? 1 : Math.max(-1, Math.min(1, Math.cos(c.heading) * 2.5));
+    pivot.rotation.set(up * lean * k, 0, 0);
     const s = 1 + (POP - 1) * k;
     let sy = s;
     if (def.kind === 'bird') sy = s * (0.7 + 0.3 * Math.abs(Math.sin(tt * 7 + def.delay * 5)));
@@ -421,6 +430,8 @@ const ua = navigator.userAgent;
 const inApp = /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(ua);
 const isPhone = /Android|iPhone|iPad|iPod/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
 const pageUrl = location.origin + location.pathname;
+// LINE 支援用網址參數直接跳到外部瀏覽器
+if (/Line\//i.test(ua) && !/openExternalBrowser=1/.test(location.search)) location.replace(pageUrl + '?openExternalBrowser=1');
 if (inApp) { $('inapp').hidden = false; $('extLink').href = pageUrl + '?openExternalBrowser=1'; }
 if (!isPhone) {
   $('handoff').hidden = false;
@@ -430,6 +441,7 @@ if (!isPhone) {
 
 function cameraHelp(err) {
   const name = err && err.name;
+  if (name === 'LoadFail') return '角色檔案沒有下載完成，可能是網路不穩。請換個網路，按「返回」後再試一次。';
   if (location.protocol !== 'https:' && location.hostname !== 'localhost') return '這個網址不是 https 開頭，瀏覽器不允許使用相機。';
   if (inApp) return '在 LINE 或其他 App 裡面無法使用相機。請改用手機的 Safari 或 Chrome 開啟這個網址。';
   if (name === 'NotAllowedError' || name === 'SecurityError') return isPhone
@@ -442,6 +454,7 @@ function cameraHelp(err) {
 }
 function showError(err) {
   $('errMsg').textContent = cameraHelp(err);
+  $('err').querySelector('h2').textContent = err && err.name === 'LoadFail' ? '角色沒有載入成功' : '相機沒有打開';
   ['ar', 'hud', 'hint', 'cap'].forEach(id => $(id).hidden = true);
   $('err').hidden = false;
 }
@@ -453,7 +466,10 @@ $('errPreview').addEventListener('click', () => {
 
 // ---------- 預覽模式 ----------
 let preview = null;
-$('showPage').addEventListener('click', () => { $('pageView').hidden = false; });
+$('showPage').addEventListener('click', () => {
+  const img = $('pageView').querySelector('img'); if (!img.src) img.src = img.dataset.src;   // 要看時才下載大圖
+  $('pageView').hidden = false;
+});
 $('pageClose').addEventListener('click', () => { $('pageView').hidden = true; });
 $('showPreview').addEventListener('click', () => {
   $('preview').hidden = false;
@@ -494,7 +510,7 @@ $('pvPlay').addEventListener('click', async () => {
     renderer.setAnimationLoop(() => {
       const t = (performance.now() - preview.t0) / 1000;
       const a = Math.sin(t * 0.25) * 0.5;          // 鏡頭左右慢慢繞，看出立體感
-      camera.position.set(Math.sin(a) * 1.05, 0.85, Math.cos(a) * 1.05);
+      camera.position.set(Math.sin(a) * 0.85, 1.15, Math.cos(a) * 0.85);   // 像手機從斜上方往下看
       camera.lookAt(0, 0.08, 0);
       updateCast(cast, t);
       const text = captionAt(audio.currentTime);
@@ -511,7 +527,14 @@ $('pvSound').addEventListener('click', () => playNarration(pvAudio, $('pvSound')
 let mindar = null, audio = null, started = null, visible = false;
 window.__ar = { get visible() { return visible; }, get audio() { return audio; }, get started() { return started; } };
 
+let starting = false, lostTimer = 0;
+const hintText = t => { $('hintText').textContent = t; };
 $('startAR').addEventListener('click', async () => {
+  if (starting) return;                            // 防止連點開好幾個相機
+  starting = true; $('startAR').disabled = true; $('startAR').textContent = '準備中…';
+  try { await startAR(); } finally { starting = false; $('startAR').disabled = false; $('startAR').textContent = '開始 AR'; }
+});
+async function startAR() {
   audio = makeNarration();
   const unlock = unlockAudio(audio);               // 在點擊當下解鎖聲音（iPhone 需要）
   try {
@@ -519,9 +542,10 @@ $('startAR').addEventListener('click', async () => {
     const test = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     test.getTracks().forEach(t => t.stop());
   } catch (e) { showError(e); return; }
-  await unlock;
+  await Promise.race([unlock, new Promise(r => setTimeout(r, 1500))]);   // 聲音檔太慢時不要卡住
 
   $('intro').hidden = true; $('ar').hidden = false; $('hud').hidden = false; $('hint').hidden = false;
+  $('hint').classList.remove('lost'); hintText('角色載入中，請稍候…');
 
   // MindAR 建立的相機畫面要設成靜音，嚴格的手機瀏覽器才肯自動播放
   new MutationObserver((list, obs) => {
@@ -531,14 +555,25 @@ $('startAR').addEventListener('click', async () => {
   mindar = new MindARThree({ container: $('ar'), imageTargetSrc: 'p02.mind', uiScanning: 'no', filterMinCF: 0.0001, filterBeta: 0.001 });
   const { renderer, scene, camera } = mindar;
   const anchor = mindar.addAnchor(0);
-  const cast = await buildCast(anchor.group);
-
+  renderer.setPixelRatio(Math.min(1.5, devicePixelRatio));   // 限制畫質，中階手機才跑得順
+  let cast;
+  try { cast = await buildCast(anchor.group); }
+  catch (e) { $('ar').innerHTML = ''; showError({ name: 'LoadFail' }); return; }
+  hintText('把繪本第 2 頁整頁放進畫面（手機橫拿效果最好）');
   anchor.onTargetFound = () => {
+    clearTimeout(lostTimer);
     visible = true; $('hint').hidden = true;
     if (started === null) { started = performance.now(); audio.currentTime = 0; }
     if (!audio.ended) playNarration(audio, $('sound'));
   };
-  anchor.onTargetLost = () => { visible = false; $('hint').hidden = false; audio.pause(); $('sound').hidden = true; };
+  // 手晃一下就遺失很常見：等 1 秒還找不到才暫停，提示放在下緣不擋畫面
+  anchor.onTargetLost = () => {
+    clearTimeout(lostTimer);
+    lostTimer = setTimeout(() => {
+      visible = false; audio.pause(); $('sound').hidden = true;
+      hintText('找不到第 2 頁了，把整頁放回畫面就會繼續'); $('hint').classList.add('lost'); $('hint').hidden = false;
+    }, 1000);
+  };
   audio.addEventListener('ended', () => { $('replay').hidden = false; });
 
   try { await mindar.start(); }
@@ -553,6 +588,13 @@ $('startAR').addEventListener('click', async () => {
     if ($('cap').textContent !== text) $('cap').textContent = text;
     renderer.render(scene, camera);
   });
+}
+
+// 切到其他 App 或關掉螢幕時暫停旁白
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) return;
+  if (audio) audio.pause();
+  if (pvAudio) pvAudio.pause();
 });
 
 $('replay').addEventListener('click', () => {
@@ -569,7 +611,7 @@ $('exit').addEventListener('click', async () => {
   if (audio) audio.pause();
   ['ar', 'hud', 'hint', 'cap', 'replay', 'sound'].forEach(id => $(id).hidden = true);
   $('intro').hidden = false;
-  visible = false; started = null;
+  clearTimeout(lostTimer); visible = false; started = null;
 });
 </script>
 </body>
