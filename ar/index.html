@@ -158,7 +158,7 @@ ol a{color:var(--sand)}
 <script type="module">
 import * as THREE from 'three';
 import { MindARThree } from 'mindar-image-three';
-import { buildSourceBoat } from './source-boat.js?v=original-art-1';
+import { buildSourceBoat } from './source-boat.js?v=continuous-1';
 
 // ---------- 本頁內容 ----------
 // 頁面座標：寬 = 1，原點在頁面中心，x 向右、y 向上、z 朝讀者（離開紙面）
@@ -306,7 +306,7 @@ async function buildCast(parent) {
     parent.add(shadow, holder);
     cast.push({ def, holder, pivot, body, shadow, uniforms, heading: 0 });
   }
-  cast.boat = await buildSourceBoat(parent);
+  cast.boat = await buildSourceBoat(parent,false,w=>artMesh('tuna_big',w,true));
   cast.distantBoat = await buildSourceBoat(parent, true);
   sharedArtTextures.add(cast.boat.texture);
   cast.clean = clean;

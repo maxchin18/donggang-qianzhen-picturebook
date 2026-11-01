@@ -73,16 +73,18 @@ async def visual(p):
         await page.locator('#stage').screenshot(path=str(OUT / f'boat-{view}.png'))
         log['views'].append(f'boat-{view}')
     for i in range(3):
-        # Render a complete crew member alone in their real pose and materials.
-        await page.evaluate('''i=>{const p=__preview,b=p.cast.boat;b.holder.visible=false;
-          const person=b.crew[i].clone(true);person.name='qa-person';person.position.set(0,0,0);person.rotation.set(0,0,0);
-          p.page.add(person);window.__qaPerson=person;}''', i)
-        for view, eye in [('front',[0,.24,-.04]),('side',[.20,.12,-.04]),('rear',[0,-.24,-.04]),('top',[0,.07,-.24])]:
-            await page.evaluate('v=>__view(...v,0,0,-.04)', eye)
+        # Bones drive one continuous painted surface. Frame the real surface;
+        # cloning a Bone alone would produce an empty "passing" screenshot.
+        for view, eye in [('front',[0,.5,0]),('side',[.22,.4,.1]),('rear',[0,-.5,0]),('top',[0,.35,-.3])]:
+            await page.evaluate('''v=>{const p=__preview,b=p.cast.boat;b.holder.visible=true;
+              const [x,y]=[[512,250],[610,280],[715,300]][v.i];
+              const target=p.page.position.clone().set((x-b.sourceCenter[0])/1536,(b.sourceCenter[1]-y)/1536,.025);
+              b.holder.localToWorld(target);p.camera.position.copy(target).add(p.page.position.clone().set(...v.eye));
+              p.camera.up.set(0,0,-1);p.camera.lookAt(target);p.camera.zoom=5.3;p.camera.updateProjectionMatrix();p.renderer.render(p.scene,p.camera);
+            }''', {'i':i,'eye':eye})
             await page.locator('#stage').screenshot(path=str(OUT / f'fisherman-{i+1}-{view}.png'))
             log['views'].append(f'fisherman-{i+1}-{view}')
-        await page.evaluate('()=>__qaPerson.removeFromParent()')
-    log['geometry'] = await page.evaluate('''()=>{const p=__preview;return {characters:p.cast.map(c=>({id:c.def.id,vertices:c.body.geometry.attributes.position.count,triangles:c.body.geometry.index.count/3})),crew:p.cast.boat.crew.map(f=>({name:f.name,originalArt:!!f.userData.sourcePixels,closed:!!f.geometry?.userData.closed})),render:p.renderer.info.render};}''')
+    log['geometry'] = await page.evaluate('''()=>{const p=__preview;return {characters:p.cast.map(c=>({id:c.def.id,vertices:c.body.geometry.attributes.position.count,triangles:c.body.geometry.index.count/3})),crew:p.cast.boat.crew.map(f=>({name:f.name,originalArt:!!f.userData.sourcePixels,closed:!!p.cast.boat.boat.geometry.userData.closed})),render:p.renderer.info.render};}''')
     await browser.close()
     (OUT / 'visual.json').write_text(json.dumps(log, ensure_ascii=False, indent=2), encoding='utf-8')
     assert not log['errors'] and not log['httpFailures'], log
@@ -248,14 +250,19 @@ async def original(p):
     await page.locator('#stage').screenshot(path=str(OUT/'original-live.png'))
     await page.evaluate('()=>{__preview.renderer.setAnimationLoop(null);__preview.audio.pause();document.querySelector("#pvCap").hidden=true;}')
     log['relief']=await page.evaluate('''()=>{
-      const p=__preview,boats=[p.cast.boat,p.cast.distantBoat];let badEdges=0,triangles=0;const crewDepth=[1,1];
+      const p=__preview,boats=[p.cast.boat,p.cast.distantBoat];let badEdges=0,triangles=0;const crewDepth=[Infinity,Infinity];
       for(const [bi,b] of boats.entries())for(const piece of b.pieces){
         const g=piece.geometry,index=g.index.array,edges=new Map();
         for(let i=0;i<index.length;i+=3)for(let j=0;j<3;j++){
           const a=index[i+j],bb=index[i+(j+1)%3],key=a<bb?`${a},${bb}`:`${bb},${a}`;edges.set(key,(edges.get(key)||0)+1);
         }
         badEdges += [...edges.values()].filter(n=>n!==2).length;triangles+=index.length/3;
-        if(piece.name.includes('fisherman')){g.computeBoundingBox();crewDepth[bi]=Math.min(crewDepth[bi],g.boundingBox.max.z-g.boundingBox.min.z);}
+        const pos=g.attributes.position,uv=g.attributes.uv;
+        for(const field of b.rig.fields.filter((_,i)=>i<b.crew.length)){
+          let lo=Infinity,hi=-Infinity;
+          for(let i=0;i<pos.count;i++)if(Math.hypot((uv.getX(i)*1536-field.x)/18,((1-uv.getY(i))*1024-field.y)/18)<1){lo=Math.min(lo,pos.getZ(i));hi=Math.max(hi,pos.getZ(i));}
+          crewDepth[bi]=Math.min(crewDepth[bi],hi-lo);
+        }
       }
       return {badEdges,triangles,crewDepth,source:boats[0].texture.image.src,pieces:boats.map(b=>b.pieces.length),crew:boats.map(b=>b.crew.length)};
     }''')
