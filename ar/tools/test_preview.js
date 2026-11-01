@@ -1,0 +1,13 @@
+const {chromium}=require('playwright');const S=process.argv[2];
+(async()=>{await require(S+'/common.js').serve('/home/claude/donggang-qianzhen-picturebook',8768);
+const b=await chromium.launch({args:['--autoplay-policy=user-gesture-required']});
+const ctx=await b.newContext({viewport:{width:900,height:900}});await require(S+'/common.js')(ctx,S);
+const p=await ctx.newPage();p.on('pageerror',e=>console.log('pageerror',e.message));p.on('console',m=>{if(m.type()==='error')console.log('console',m.text())});
+await p.goto('http://localhost:8768/ar/index.html');await p.waitForTimeout(800);
+await p.click('#showPreview');await p.click('#pvPlay');
+const st=await p.$('#stage');
+const au=()=>p.evaluate(()=>{const c=document.getElementById('pvCap');const b=document.getElementById('pvSound');return {cap:c.hidden?'(hidden)':c.textContent,soundBtn:!b.hidden}});
+await p.waitForTimeout(1000);await st.screenshot({path:S+'/q0.png'});console.log('+1',await au());
+await p.waitForTimeout(2500);await st.screenshot({path:S+'/q1.png'});console.log('+3.5',await au());
+await p.waitForTimeout(4000);await st.screenshot({path:S+'/q2.png'});console.log('+7.5',await au());
+await b.close();process.exit(0);})();
