@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>會動的繪本・第 2 頁</title>
-<meta name="description" content="用手機對準《東港 × 前鎮》繪本第 2 頁，畫面就會動起來，還有旁白。">
+<title>立體繪本・第 2 頁</title>
+<meta name="description" content="用手機對準《東港 × 前鎮》繪本第 2 頁，鮪魚、海鷗和漁夫會立體跳出紙面，一邊游動一邊說故事。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐟</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,7 +21,7 @@
 [hidden]{display:none!important}
 html,body{height:100%}
 body{font-family:var(--body);background:var(--abyss);color:var(--foam);line-height:1.7}
-img,video{display:block;max-width:100%}
+img,video,canvas{display:block;max-width:100%}
 button{font:inherit;cursor:pointer}
 button:focus-visible,a:focus-visible{outline:3px solid var(--sand);outline-offset:3px}
 
@@ -34,25 +34,30 @@ h1{font-family:var(--display);font-size:clamp(1.8rem,6vw,2.6rem);line-height:1.2
 .lead{color:#cfe7f7}
 ol{display:flex;flex-direction:column;gap:10px;padding-left:1.4em}
 ol li::marker{color:var(--coral);font-weight:700}
+ol a{color:var(--sand)}
 .actions{display:flex;flex-wrap:wrap;gap:12px}
 .btn{border:0;border-radius:999px;padding:14px 26px;font-weight:700;font-size:1.05rem}
 .btn.main{background:var(--coral);color:#fff;box-shadow:0 10px 24px -10px #ff7a59}
 .btn.ghost{background:transparent;color:var(--foam);border:2px solid #ffffff55}
 .note{font-size:.88rem;color:#a9c8e0}
-.note a{color:var(--sand)}
+.handoff{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:#ffffff12;border:1px solid #ffffff26;border-radius:16px;padding:14px}
+.handoff .qr{background:#fff;padding:8px;border-radius:8px;line-height:0}
+.handoff p{flex:1;min-width:180px}
+.warn{background:var(--sand);color:var(--ink);border-radius:14px;padding:12px 14px;font-weight:500}
+.warn a{color:var(--ink);font-weight:700}
 
-/* 預覽模式：沒有相機時，直接在螢幕上看「紙變活」的效果 */
+/* 預覽：沒有相機時，在螢幕上看同一組立體角色 */
 #preview{width:min(900px,100%);display:flex;flex-direction:column;gap:10px}
-.page{position:relative;width:100%;aspect-ratio:3/2;border-radius:6px;overflow:hidden;box-shadow:0 18px 40px -18px #000c;background:#fff}
-.page img{width:100%;height:100%;object-fit:cover}
-.page video{position:absolute;left:0;top:7.8125%;width:100%;height:84.375%;object-fit:cover;opacity:0;transition:opacity .8s}
-.page video.on{opacity:1}
-.page .tap{position:absolute;inset:auto 0 12px 0;margin-inline:auto;width:max-content;background:#082c57cc;color:#fff;
+#stage{position:relative;width:100%;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#0a3a6e}
+#stage canvas{width:100%;height:100%}
+#stage .tap{position:absolute;inset:auto 0 14px 0;margin-inline:auto;width:max-content;background:#082c57e0;color:#fff;
   border:0;border-radius:999px;padding:10px 20px;font-weight:700}
+#pvCap{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;width:min(92%,640px);text-align:center;
+  font-family:var(--display);font-size:clamp(.95rem,3.4vw,1.2rem);background:#082c57d9;border-radius:12px;padding:6px 12px;color:#fff}
 
 /* AR 畫面 */
 #ar{position:fixed;inset:0;overflow:hidden;z-index:0}
-#ar .mindar-ui-overlay{z-index:2}
+#ar video,#ar canvas{max-width:none}  /* MindAR 會把相機畫面放大超出螢幕再置中，不能被限制寬度 */
 .hud{position:fixed;left:0;right:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:8px;
   padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
 .hud.top{top:0;padding-top:calc(12px + env(safe-area-inset-top,0px))}
@@ -63,17 +68,10 @@ ol li::marker{color:var(--coral);font-weight:700}
 #hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:4;width:min(80vw,420px);text-align:center;
   background:#082c57d9;border-radius:16px;padding:16px;color:#fff;pointer-events:none}
 #hint .frame{width:70%;aspect-ratio:3/2;margin:0 auto 10px;border:3px dashed var(--sand);border-radius:8px}
-/* 電腦開啟時：QR 讓手機接手；LINE 等內建瀏覽器提示 */
-.handoff{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:#ffffff12;border:1px solid #ffffff26;border-radius:16px;padding:14px}
-.handoff .qr{background:#fff;padding:8px;border-radius:8px;line-height:0}
-.handoff p{flex:1;min-width:180px}
-.warn{background:var(--sand);color:var(--ink);border-radius:14px;padding:12px 14px;font-weight:500}
-.warn a{color:var(--ink);font-weight:700}
 #err{position:fixed;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;background:var(--abyss);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 #err .box{width:min(520px,100%);display:flex;flex-direction:column;gap:14px}
 #err h2{font-family:var(--display);font-size:1.5rem}
-@media (prefers-reduced-motion:reduce){.page video{transition:none}}
 </style>
 <script type="importmap">
 {"imports":{
@@ -87,33 +85,32 @@ ol li::marker{color:var(--coral);font-weight:700}
 
 <main id="intro">
   <section class="card">
-    <p class="eyebrow">東港 × 前鎮 遠洋漁業繪本・AR 試作</p>
-    <h1>對準第 2 頁，看鮪延繩釣船動起來</h1>
-    <p class="lead">就像哈利波特的魔法報紙：手機鏡頭認出紙本上的畫，畫面會在紙上活過來，還會唸出旁白。</p>
-    <ol>
-      <li>準備第 2 頁：印出紙本，或在另一台電腦螢幕打開<a href="../assets/pages/p02.webp" target="_blank" rel="noopener" style="color:var(--sand)">第 2 頁大圖</a>。</li>
-      <li>按「開始 AR」，允許使用相機。</li>
-      <li>把整頁放進畫面裡，稍微保持穩定，畫就會開始動。</li>
-    </ol>
+    <p class="eyebrow">東港 × 前鎮 遠洋漁業繪本・立體 AR</p>
+    <h1>對準第 2 頁，讓鮪魚和海鷗跳出來說故事</h1>
+    <p class="lead">鏡頭認出繪本上的畫之後，鮪魚、海鷗、漁夫會從紙上浮起來，在書頁上方游動飛翔，同時唸出這一頁的故事。</p>
     <p class="warn" id="inapp" hidden>您正在 LINE 或其他 App 裡開啟，相機可能無法使用。請<a id="extLink" href="#">點這裡改用瀏覽器開啟</a>，或點右上角選單選「用預設瀏覽器開啟」。</p>
+    <ol>
+      <li>翻到繪本第 2 頁（或在另一個螢幕打開<a href="../assets/pages/p02.webp" target="_blank" rel="noopener">第 2 頁大圖</a>）。</li>
+      <li>按「開始 AR」，允許使用相機，並打開聲音。</li>
+      <li>把整頁放進畫面，手機稍微斜著看，角色會更立體。</li>
+    </ol>
     <div class="handoff" id="handoff" hidden>
       <div class="qr" id="qr"></div>
-      <p><strong>建議用手機掃描 QR Code 開啟。</strong>電腦大多沒有後鏡頭，用手機對準紙本效果最好。您也可以把這台電腦的螢幕打開第 2 頁大圖，再用手機對準螢幕。</p>
+      <p><strong>請用手機掃描 QR Code 開啟。</strong>電腦大多沒有後鏡頭，用手機對準繪本效果最好。</p>
     </div>
     <div class="actions">
       <button class="btn main" id="startAR" type="button">開始 AR</button>
-      <button class="btn ghost" id="showPreview" type="button">沒有紙本？先看預覽</button>
+      <button class="btn ghost" id="showPreview" type="button">沒有繪本？先看預覽</button>
     </div>
-    <p class="note">需要用手機瀏覽器開啟（iPhone 用 Safari、Android 用 Chrome），並開啟聲音。若相機沒有反應，請確認網址是 https 開頭，並在瀏覽器設定中允許相機。</p>
+    <p class="note">iPhone 請用 Safari、Android 請用 Chrome 開啟。</p>
   </section>
 
   <section id="preview" hidden>
-    <div class="page">
-      <img src="../assets/pages/p02.webp" alt="繪本第 2 頁：東港漁船進行鮪延繩釣，海面下有黑鮪魚與一排排魚鉤">
-      <video id="pv" src="p02.mp4" playsinline preload="metadata"></video>
-      <button class="tap" id="pvPlay" type="button">▶ 讓這一頁動起來</button>
+    <div id="stage">
+      <button class="tap" id="pvPlay" type="button">▶ 讓角色跳出來</button>
+      <div id="pvCap" hidden></div>
     </div>
-    <p class="note">預覽是在螢幕上模擬 AR 的效果：動畫會剛好疊在原畫的位置，所以看起來像紙上的畫自己動了。</p>
+    <p class="note">預覽是把同一組立體角色放在第 2 頁上方，用電腦螢幕模擬手機對準繪本時看到的樣子。</p>
   </section>
 </main>
 
@@ -121,7 +118,7 @@ ol li::marker{color:var(--coral);font-weight:700}
 <div class="hud top" id="hud" hidden>
   <button id="exit" type="button">← 返回</button>
   <span style="display:flex;gap:8px">
-    <button id="replay" type="button" hidden>↻ 重播</button>
+    <button id="replay" type="button" hidden>↻ 再聽一次</button>
     <button id="mute" type="button">🔊 聲音開</button>
   </span>
 </div>
@@ -141,21 +138,143 @@ ol li::marker{color:var(--coral);font-weight:700}
 import * as THREE from 'three';
 import { MindARThree } from 'mindar-image-three';
 
-// 旁白字幕（秒數相對於本頁影片）
+// ---------- 本頁內容 ----------
+// 頁面座標：寬 = 1，原點在頁面中心，x 向右、y 向上、z 朝讀者（離開紙面）
+const PAGE_W = 1, PAGE_H = 1024 / 1536;
 const CAPS = [
   [0.57, 5.95, '另一方面，東港CT3和CT4漁船展開鮪延繩釣作業，'],
   [6.45, 10.49, '在海中拉開長長的主繩，垂掛支繩與魚鉤。'],
   [10.99, 16.53, '此時正值東港黑鮪魚季，船員們合力捕撈體型碩大的黑鮪魚。'],
 ];
-// 繪本頁 3:2；影片 16:9 是整頁寬、上下各裁掉 7.8125%
-const PAGE_H = 1024 / 1536, VIDEO_H = 9 / 16;
+// x, y, w, h：角色在原畫上的位置與大小；path：跳出後的繞行路線
+const CHARS = [
+  { id: 'boat2',    kind: 'stand', x: 0.305,  y: 0.1497,  w: 0.2585, h: 0.1576, z: 0.05, delay: 0.0 },
+  { id: 'crew',     kind: 'stand', x: -0.0934, y: 0.11,   w: 0.2207, h: 0.2227, z: 0.09, delay: 0.3 },
+  { id: 'tuna_big', kind: 'fish',  x: -0.2216, y: -0.1755, w: 0.3783, h: 0.1621, delay: 0.6,
+    path: { cx: -0.02, cy: -0.13, rx: 0.32, ry: 0.11, z: 0.16, period: 16, phase: 3.4 } },
+  { id: 'tuna_m',   kind: 'fish',  x: 0.2044, y: -0.2233, w: 0.2005, h: 0.1146, delay: 0.9,
+    path: { cx: 0.08, cy: -0.2, rx: 0.26, ry: 0.07, z: 0.1, period: 12, phase: 0.2 } },
+  { id: 'tuna_r',   kind: 'fish',  x: 0.4228, y: -0.1429, w: 0.1322, h: 0.0775, delay: 1.2,
+    path: { cx: 0.22, cy: -0.09, rx: 0.2, ry: 0.06, z: 0.13, period: 10, phase: 0.6 } },
+  { id: 'gull1',    kind: 'bird',  x: -0.3626, y: 0.29,   w: 0.099,  h: 0.0645, delay: 0.4,
+    path: { cx: -0.08, cy: 0.17, rx: 0.36, ry: 0.13, z: 0.34, period: 11, phase: 3.0 } },
+  { id: 'gull2',    kind: 'bird',  x: 0.1158, y: 0.2448,  w: 0.099,  h: 0.0508, delay: 0.8,
+    path: { cx: 0.12, cy: 0.2, rx: 0.28, ry: 0.1, z: 0.27, period: 9, phase: 0.1 } },
+];
+const RISE = 2.2;   // 從紙面浮起所需秒數
+const POP = 1.25;   // 跳出後放大倍率
 
 const $ = id => document.getElementById(id);
-const capEl = $('cap');
+const ease = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
+const captionAt = t => (CAPS.find(([a, b]) => t >= a && t <= b) || [])[2] || '';
 
-function captionAt(t) {
-  const c = CAPS.find(([a, b]) => t >= a && t <= b);
-  return c ? c[2] : '';
+// ---------- 角色貼圖：加上白色剪紙邊 ----------
+const loader = new THREE.TextureLoader();
+function loadImage(src) {
+  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+}
+async function makeTextures(id) {
+  const img = await loadImage(`p02/${id}.png`);
+  const pad = 10, w = img.width + pad * 2, h = img.height + pad * 2;
+  const art = document.createElement('canvas'); art.width = w; art.height = h;
+  art.getContext('2d').drawImage(img, pad, pad);
+  const edge = document.createElement('canvas'); edge.width = w; edge.height = h;
+  const g = edge.getContext('2d');
+  const r = Math.max(4, Math.round(img.width / 70));
+  for (let a = 0; a < 16; a++) g.drawImage(img, pad + Math.cos(a / 8 * Math.PI) * r, pad + Math.sin(a / 8 * Math.PI) * r);
+  g.globalCompositeOperation = 'source-in'; g.fillStyle = '#fffdf6'; g.fillRect(0, 0, w, h);
+  const t1 = new THREE.CanvasTexture(art), t2 = new THREE.CanvasTexture(edge);
+  t1.colorSpace = t2.colorSpace = THREE.SRGBColorSpace;
+  return { art: t1, edge: t2, scale: w / img.width, ratio: h / w };
+}
+
+// 魚身擺動：尾巴（貼圖左側）擺得最多
+function wiggle(mat, uniforms) {
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uTime = uniforms.uTime; sh.uniforms.uAmp = uniforms.uAmp;
+    sh.vertexShader = 'uniform float uTime;\nuniform float uAmp;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\nfloat wt = 1.0 - uv.x;\ntransformed.y += sin(uv.x * 7.0 - uTime * 9.0) * uAmp * wt * wt;\ntransformed.z += sin(uv.x * 5.0 - uTime * 9.0) * uAmp * 0.8 * wt * wt;');
+  };
+}
+
+async function buildCast(parent) {
+  const shadowTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(0,10,30,0.55)'); gr.addColorStop(1, 'rgba(0,10,30,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  })();
+  const cast = [];
+  for (const def of CHARS) {
+    const tx = await makeTextures(def.id);
+    const w = def.w * tx.scale, h = w * tx.ratio;
+    const segs = def.kind === 'fish' ? 24 : 1;
+    const uniforms = { uTime: { value: 0 }, uAmp: { value: def.kind === 'fish' ? def.h * 0.12 : 0 } };
+    const artMat = new THREE.MeshBasicMaterial({ map: tx.art, transparent: true, side: THREE.DoubleSide, depthWrite: false, alphaTest: 0.02 });
+    const edgeMat = new THREE.MeshBasicMaterial({ map: tx.edge, transparent: true, side: THREE.DoubleSide, depthWrite: false, alphaTest: 0.02 });
+    if (def.kind === 'fish') { wiggle(artMat, uniforms); wiggle(edgeMat, uniforms); }
+    const geo = new THREE.PlaneGeometry(w, h, segs, 1);
+    const holder = new THREE.Group();
+    const body = new THREE.Group();
+    const edge = new THREE.Mesh(geo, edgeMat); edge.position.z = -0.002; edge.renderOrder = 1;
+    const art = new THREE.Mesh(geo, artMat); art.renderOrder = 2;
+    body.add(edge, art); holder.add(body);
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(def.w * 1.1, def.w * 0.45),
+      new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0 }));
+    shadow.renderOrder = 0;
+    parent.add(shadow, holder);
+    cast.push({ def, holder, body, shadow, uniforms, facing: 1 });
+  }
+  return cast;
+}
+
+// 每一格更新角色：t = 角色出場後經過的秒數
+const _q = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _id = new THREE.Quaternion();
+function updateCast(cast, t, camera, parent) {
+  parent.updateMatrixWorld();
+  parent.getWorldQuaternion(_qp).invert();
+  const face = _qp.clone().multiply(camera.quaternion);    // 面向鏡頭的方向
+  for (const c of cast) {
+    const { def, holder, body, shadow, uniforms } = c;
+    const k = ease((t - def.delay) / RISE);
+    const tt = Math.max(0, t - def.delay);
+    uniforms.uTime.value = tt;
+    let x = def.x, y = def.y, z = 0, dx = 1;
+    if (def.path) {
+      const p = def.path, a = p.phase + tt / p.period * Math.PI * 2;
+      const px = p.cx + Math.cos(a) * p.rx, py = p.cy + Math.sin(a) * p.ry;
+      dx = -Math.sin(a) * p.rx;
+      x = def.x + (px - def.x) * k; y = def.y + (py - def.y) * k;
+      z = p.z * k + Math.sin(tt * 1.7 + p.phase) * 0.012 * k;
+    } else {
+      z = def.z * k + Math.sin(tt * 1.4 + def.delay) * 0.008 * k;
+    }
+    holder.position.set(x, y, z + 0.003);
+    holder.quaternion.copy(_id).slerp(face, k);
+    // 魚和鳥轉向游動方向（原畫都朝右）
+    if (def.path && k > 0.5) c.facing += ((dx >= 0 ? 1 : -1) - c.facing) * 0.08;
+    const s = 1 + (POP - 1) * k;
+    let sy = s;
+    if (def.kind === 'bird') sy = s * (0.72 + 0.28 * Math.abs(Math.sin(tt * 7 + def.delay * 5)));
+    body.scale.set(s * c.facing, sy, s);
+    body.rotation.z = def.kind === 'stand' ? Math.sin(tt * 1.3 + def.delay * 3) * 0.05 * k
+                    : def.kind === 'fish' ? Math.sin(tt * 1.7) * 0.06 * k : 0;
+    shadow.position.set(x, y - z * 0.25, 0.001);
+    shadow.material.opacity = (def.kind === 'bird' ? 0.35 : 0.7) * k / (1 + z * 4);
+    const ss = 1 + z * 1.5;
+    shadow.scale.set(ss, ss, 1);
+  }
+}
+
+// ---------- 旁白 ----------
+function makeNarration() {
+  const a = new Audio('p02/narration.m4a');
+  a.preload = 'auto';
+  return a;
+}
+function unlockAudio(a) {
+  return a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
 }
 
 // ---------- 開啟環境判斷 ----------
@@ -163,10 +282,7 @@ const ua = navigator.userAgent;
 const inApp = /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(ua);
 const isPhone = /Android|iPhone|iPad|iPod/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
 const pageUrl = location.origin + location.pathname;
-if (inApp) {
-  $('inapp').hidden = false;
-  $('extLink').href = pageUrl + '?openExternalBrowser=1';
-}
+if (inApp) { $('inapp').hidden = false; $('extLink').href = pageUrl + '?openExternalBrowser=1'; }
 if (!isPhone) {
   $('handoff').hidden = false;
   try { new QRCode($('qr'), { text: pageUrl + '?openExternalBrowser=1', width: 132, height: 132 }); }
@@ -190,127 +306,114 @@ function showError(err) {
   ['ar', 'hud', 'hint', 'cap'].forEach(id => $(id).hidden = true);
   $('err').hidden = false;
 }
-$('errBack').addEventListener('click', () => { location.reload(); });
+$('errBack').addEventListener('click', () => location.reload());
 $('errPreview').addEventListener('click', () => {
-  $('err').hidden = true;
-  $('intro').hidden = false;
-  $('preview').hidden = false;
+  $('err').hidden = true; $('intro').hidden = false; $('preview').hidden = false;
   $('preview').scrollIntoView({ block: 'start' });
 });
 
 // ---------- 預覽模式 ----------
+let preview = null;
 $('showPreview').addEventListener('click', () => {
   $('preview').hidden = false;
   $('preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
-const pv = $('pv');
-$('pvPlay').addEventListener('click', () => {
-  pv.currentTime = 0;
-  pv.play();
-  pv.classList.add('on');
+$('pvPlay').addEventListener('click', async () => {
   $('pvPlay').hidden = true;
-});
-pv.addEventListener('ended', () => {
-  pv.classList.remove('on');
-  $('pvPlay').hidden = false;
-  $('pvPlay').textContent = '↻ 再看一次';
+  if (!preview) {
+    const stage = $('stage');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+    renderer.setSize(stage.clientWidth, stage.clientHeight);
+    stage.prepend(renderer.domElement);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, stage.clientWidth / stage.clientHeight, 0.01, 10);
+    const page = new THREE.Group();
+    page.rotation.x = -Math.PI / 2;              // 繪本平放在桌上
+    scene.add(page);
+    const pageTex = await loader.loadAsync('../assets/pages/p02.webp');
+    pageTex.colorSpace = THREE.SRGBColorSpace;
+    page.add(new THREE.Mesh(new THREE.PlaneGeometry(PAGE_W, PAGE_H), new THREE.MeshBasicMaterial({ map: pageTex })));
+    const cast = await buildCast(page);
+    const audio = makeNarration();
+    preview = { renderer, scene, camera, page, cast, audio, t0: performance.now() };
+    new ResizeObserver(() => {
+      renderer.setSize(stage.clientWidth, stage.clientHeight);
+      camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix();
+    }).observe(stage);
+    renderer.setAnimationLoop(() => {
+      const t = (performance.now() - preview.t0) / 1000;
+      const a = Math.sin(t * 0.25) * 0.5;          // 鏡頭左右慢慢繞，看出立體感
+      camera.position.set(Math.sin(a) * 1.05, 0.85, Math.cos(a) * 1.05);
+      camera.lookAt(0, 0.08, 0);
+      updateCast(cast, t, camera, page);
+      const text = captionAt(audio.currentTime);
+      $('pvCap').hidden = !text || audio.paused;
+      $('pvCap').textContent = text;
+      renderer.render(scene, camera);
+    });
+  }
+  preview.t0 = performance.now();
+  preview.audio.currentTime = 0;
+  preview.audio.play().catch(() => {});
+  preview.audio.onended = () => { $('pvPlay').hidden = false; $('pvPlay').textContent = '↻ 再看一次'; };
 });
 
 // ---------- AR 模式 ----------
-let mindar = null, video = null, fade = 0, visible = false;
+let mindar = null, audio = null, started = null, visible = false;
+window.__ar = { get visible() { return visible; }, get audio() { return audio; }, get started() { return started; } };
 
 $('startAR').addEventListener('click', async () => {
-  // 在點擊當下先解鎖影片播放（iPhone 需要）
-  video = document.createElement('video');
-  video.src = 'p02.mp4';
-  video.playsInline = true;
-  video.setAttribute('playsinline', '');
-  video.crossOrigin = 'anonymous';
-  video.preload = 'auto';
-  const unlock = video.play().then(() => { video.pause(); video.currentTime = 0; }).catch(() => { /* 之後對準時再播 */ });
-
-  // 先自己試開相機，才能知道失敗原因
+  audio = makeNarration();
+  const unlock = unlockAudio(audio);               // 在點擊當下解鎖聲音（iPhone 需要）
   try {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw { name: 'Unsupported' };
     const test = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     test.getTracks().forEach(t => t.stop());
-  } catch (e) {
-    video.pause();
-    showError(e);
-    return;
-  }
-
+  } catch (e) { showError(e); return; }
   await unlock;
 
-  $('intro').hidden = true;
-  $('ar').hidden = false;
-  $('hud').hidden = false;
-  $('hint').hidden = false;
+  $('intro').hidden = true; $('ar').hidden = false; $('hud').hidden = false; $('hint').hidden = false;
 
-  mindar = new MindARThree({
-    container: $('ar'),
-    imageTargetSrc: 'p02.mind',
-    uiScanning: 'no',
-    filterMinCF: 0.0001,
-    filterBeta: 0.001,
-  });
+  mindar = new MindARThree({ container: $('ar'), imageTargetSrc: 'p02.mind', uiScanning: 'no', filterMinCF: 0.0001, filterBeta: 0.001 });
   const { renderer, scene, camera } = mindar;
-
-  const tex = new THREE.VideoTexture(video);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0 });
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(1, VIDEO_H), mat);
   const anchor = mindar.addAnchor(0);
-  anchor.group.add(plane);
+  const cast = await buildCast(anchor.group);
 
   anchor.onTargetFound = () => {
-    visible = true;
-    $('hint').hidden = true;
-    if (video.ended) video.currentTime = 0;
-    video.play().catch(() => {});
+    visible = true; $('hint').hidden = true;
+    if (started === null) { started = performance.now(); audio.currentTime = 0; }
+    if (!audio.ended) audio.play().catch(() => {});
   };
-  anchor.onTargetLost = () => {
-    visible = false;
-    $('hint').hidden = false;
-    video.pause();
-  };
-  video.addEventListener('ended', () => { $('replay').hidden = false; });
+  anchor.onTargetLost = () => { visible = false; $('hint').hidden = false; audio.pause(); };
+  audio.addEventListener('ended', () => { $('replay').hidden = false; });
 
-  try {
-    await mindar.start();
-  } catch (e) {
-    if (mindar) { try { await mindar.stop(); } catch (_) {} }
-    $('ar').innerHTML = '';
-    showError(e);
-    return;
-  }
-  const clock = new THREE.Clock();
+  try { await mindar.start(); }
+  catch (e) { try { await mindar.stop(); } catch (_) {} $('ar').innerHTML = ''; showError(e); return; }
+
   renderer.setAnimationLoop(() => {
-    const dt = clock.getDelta();
-    fade = Math.max(0, Math.min(1, fade + (visible ? dt : -dt) / 0.6));
-    mat.opacity = fade;
-    const text = visible ? captionAt(video.currentTime) : '';
-    capEl.hidden = !text;
-    if (capEl.textContent !== text) capEl.textContent = text;
+    if (started !== null) updateCast(cast, (performance.now() - started) / 1000, camera, anchor.group);
+    const text = visible && !audio.paused ? captionAt(audio.currentTime) : '';
+    $('cap').hidden = !text;
+    if ($('cap').textContent !== text) $('cap').textContent = text;
     renderer.render(scene, camera);
   });
 });
 
 $('replay').addEventListener('click', () => {
-  video.currentTime = 0;
-  video.play();
-  $('replay').hidden = true;
+  audio.currentTime = 0; audio.play(); $('replay').hidden = true;
+  started = performance.now();                      // 角色重新從紙上跳出來
 });
 $('mute').addEventListener('click', () => {
-  video.muted = !video.muted;
-  $('mute').textContent = video.muted ? '🔇 聲音關' : '🔊 聲音開';
+  audio.muted = !audio.muted;
+  $('mute').textContent = audio.muted ? '🔇 聲音關' : '🔊 聲音開';
 });
 $('exit').addEventListener('click', async () => {
   if (mindar) { mindar.renderer.setAnimationLoop(null); await mindar.stop(); $('ar').innerHTML = ''; }
-  if (video) video.pause();
+  if (audio) audio.pause();
   ['ar', 'hud', 'hint', 'cap', 'replay'].forEach(id => $(id).hidden = true);
   $('intro').hidden = false;
-  visible = false; fade = 0;
+  visible = false; started = null;
 });
 </script>
 </body>
