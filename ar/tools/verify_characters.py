@@ -15,7 +15,7 @@ parser.add_argument('--url', default='http://localhost:8000/ar/')
 parser.add_argument('--out', default='.ar-qa')
 parser.add_argument('--browser', default=str(Path.home() / 'AppData/Local/ms-playwright/chromium-1208/chrome-win64/chrome.exe'))
 parser.add_argument('--fixtures', default='.ar-qa/fixtures')
-parser.add_argument('--mode', default='visual', choices=['visual', 'ar', 'regressions', 'lifecycle', 'storybook'])
+parser.add_argument('--mode', default='visual', choices=['visual', 'ar', 'regressions', 'lifecycle', 'storybook', 'original'])
 args = parser.parse_args()
 OUT = Path(args.out).resolve(); OUT.mkdir(parents=True, exist_ok=True)
 
@@ -77,12 +77,12 @@ async def visual(p):
         await page.evaluate('''i=>{const p=__preview,b=p.cast.boat;b.holder.visible=false;
           const person=b.crew[i].clone(true);person.name='qa-person';person.position.set(0,0,0);person.rotation.set(0,0,0);
           p.page.add(person);window.__qaPerson=person;}''', i)
-        for view, eye in [('front',[0,.09,.20]),('side',[.20,.09,.01]),('rear',[0,.09,-.20]),('top',[0,.30,.001])]:
-            await page.evaluate('v=>__view(...v,0,.06,0)', eye)
+        for view, eye in [('front',[0,.24,-.04]),('side',[.20,.12,-.04]),('rear',[0,-.24,-.04]),('top',[0,.07,-.24])]:
+            await page.evaluate('v=>__view(...v,0,0,-.04)', eye)
             await page.locator('#stage').screenshot(path=str(OUT / f'fisherman-{i+1}-{view}.png'))
             log['views'].append(f'fisherman-{i+1}-{view}')
         await page.evaluate('()=>__qaPerson.removeFromParent()')
-    log['geometry'] = await page.evaluate('''()=>{const p=__preview;return {characters:p.cast.map(c=>({id:c.def.id,vertices:c.body.geometry.attributes.position.count,triangles:c.body.geometry.index.count/3})),crew:p.cast.boat.crew.map(f=>({name:f.name,arms:f.userData.arms.length,hands:f.userData.hands.length})),render:p.renderer.info.render};}''')
+    log['geometry'] = await page.evaluate('''()=>{const p=__preview;return {characters:p.cast.map(c=>({id:c.def.id,vertices:c.body.geometry.attributes.position.count,triangles:c.body.geometry.index.count/3})),crew:p.cast.boat.crew.map(f=>({name:f.name,originalArt:!!f.userData.sourcePixels,closed:!!f.geometry?.userData.closed})),render:p.renderer.info.render};}''')
     await browser.close()
     (OUT / 'visual.json').write_text(json.dumps(log, ensure_ascii=False, indent=2), encoding='utf-8')
     assert not log['errors'] and not log['httpFailures'], log
@@ -196,18 +196,16 @@ async def storybook(p):
     log['poseAudit']=await page.evaluate('''()=>{const c=__preview.cast;const violations=[];let minUp=1;
       for(let i=0;i<=480;i++){const t=i*.25;__upd(t);
         for(const b of [c.boat,c.distantBoat]){
-          const up=b.boat.up.clone().set(0,0,1).applyQuaternion(b.boat.quaternion).applyQuaternion(b.holder.quaternion);
+          const up=b.boat.up.clone().set(0,1,0).applyQuaternion(b.boat.quaternion).applyQuaternion(b.holder.quaternion);
           minUp=Math.min(minUp,up.y);if(up.y<.9)violations.push(['up',t]);
         }
-        if(!c.boat.fishing.outboard)violations.push(['fish-not-outboard',t]);
-        const a=c.boat.fishing.line.geometry.attributes.position,m=c.boat.fishing.mouth;
-        if(Math.hypot(a.getX(2)-m.x,a.getY(2)-m.y,a.getZ(2)-m.z)>1e-6)violations.push(['leader-end',t]);
-        for(const f of c){if(Math.abs(f.holder.rotation.z)>1e-6||Math.abs(f.pivot.rotation.x)>1e-6)violations.push(['turn',t]);
+        if(!c.boat.fishing.source)violations.push(['not-original-rigging',t]);
+        for(const f of c){if(Math.abs(f.holder.rotation.z)>1e-6||Math.abs(f.pivot.rotation.x)>.13||Math.abs(f.pivot.rotation.y)>.09)violations.push(['turn',t]);
           if(Math.abs(f.body.scale.x-f.body.scale.y)>1e-6)violations.push(['squash',t]);}
       }
-      return {samples:481,minUp,violations,mainCrew:c.boat.crew.length,distantCrew:c.distantBoat.crew.length,gaffs:c.boat.fishing.gaffs.length,leaderVertices:c.boat.fishing.line.geometry.attributes.position.count};}''')
+      return {samples:481,minUp,violations,mainCrew:c.boat.crew.length,distantCrew:c.distantBoat.crew.length,originalRigging:c.boat.fishing.source};}''')
     assert not log['poseAudit']['violations'],log['poseAudit']
-    assert log['poseAudit']['mainCrew']==3 and log['poseAudit']['distantCrew']==2 and log['poseAudit']['gaffs']==2
+    assert log['poseAudit']['mainCrew']==3 and log['poseAudit']['distantCrew']==2 and log['poseAudit']['originalRigging']
     for sec in [0,1,3,5,8,12,18,30,65,120]:
         await page.evaluate('t=>{__upd(t);__preview.renderer.render(__preview.scene,__preview.camera)}',sec)
         await page.locator('#stage').screenshot(path=str(OUT/f'storybook-{sec}.png'))
@@ -235,8 +233,79 @@ async def storybook(p):
     print('fixed picturebook camera, 481 upright/fishing poses, independent wings with stable head pixels passed')
 
 
+async def original(p):
+    from PIL import Image, ImageChops, ImageStat
+    log={'errors':[],'httpFailures':[]}
+    browser=await p.chromium.launch(executable_path=args.browser,args=['--autoplay-policy=user-gesture-required'])
+    page=await browser.new_page(viewport={'width':1200,'height':1100})
+    await setup(page,log);await page.locator('#showPreview').click();await page.locator('#pvPlay').click()
+    await page.wait_for_function('window.__preview?.audio.currentTime>2',timeout=45000)
+    live=[]
+    for i in range(3):
+        live.append(await page.evaluate('''()=>({time:__preview.cast[0].uniforms.uTime.value,fish:__preview.cast.map(c=>c.holder.position.toArray()),crew:__preview.cast.boat.crew.map(c=>c.rotation.toArray())})'''))
+        await page.wait_for_timeout(800)
+    log['liveMotion']=live;assert live[-1]['time']>live[0]['time']
+    await page.locator('#stage').screenshot(path=str(OUT/'original-live.png'))
+    await page.evaluate('()=>{__preview.renderer.setAnimationLoop(null);__preview.audio.pause();document.querySelector("#pvCap").hidden=true;}')
+    log['relief']=await page.evaluate('''()=>{
+      const p=__preview,boats=[p.cast.boat,p.cast.distantBoat];let badEdges=0,triangles=0;const crewDepth=[1,1];
+      for(const [bi,b] of boats.entries())for(const piece of b.pieces){
+        const g=piece.geometry,index=g.index.array,edges=new Map();
+        for(let i=0;i<index.length;i+=3)for(let j=0;j<3;j++){
+          const a=index[i+j],bb=index[i+(j+1)%3],key=a<bb?`${a},${bb}`:`${bb},${a}`;edges.set(key,(edges.get(key)||0)+1);
+        }
+        badEdges += [...edges.values()].filter(n=>n!==2).length;triangles+=index.length/3;
+        if(piece.name.includes('fisherman')){g.computeBoundingBox();crewDepth[bi]=Math.min(crewDepth[bi],g.boundingBox.max.z-g.boundingBox.min.z);}
+      }
+      return {badEdges,triangles,crewDepth,source:boats[0].texture.image.src,pieces:boats.map(b=>b.pieces.length),crew:boats.map(b=>b.crew.length)};
+    }''')
+    assert log['relief']['badEdges']==0 and log['relief']['crewDepth'][0]>.025 and log['relief']['crewDepth'][1]>.012 and log['relief']['crew']==[3,2],log
+    assert '/assets/pages/p02.webp' in log['relief']['source']
+    log['motionAudit']=await page.evaluate('''()=>{
+      const c=__preview.cast,samples=[];
+      for(let i=0;i<=240;i++){
+        const t=3+i*.25;__upd(t);samples.push({t,fish:c.filter(a=>a.def.kind==='fish').map(a=>({x:a.holder.position.x,y:a.holder.position.y,z:a.holder.position.z,tail:a.uniforms.uTime.value,amp:a.uniforms.uAmp.value,pitch:a.pivot.rotation.x,yaw:a.pivot.rotation.y})),crew:c.boat.crew.map(m=>m.rotation.z),roll:c.boat.holder.rotation.z});
+      }return samples;
+    }''')
+    for j in range(3):
+        assert max(s['fish'][j]['x'] for s in log['motionAudit'])-min(s['fish'][j]['x'] for s in log['motionAudit'])>.03
+        assert max(abs(s['fish'][j]['pitch']) for s in log['motionAudit'])<.13
+        assert max(abs(s['fish'][j]['yaw']) for s in log['motionAudit'])<.09
+    for sec in [0,1,3,5,7,9,12,18,30,60]:
+        await page.evaluate('t=>{__upd(t);__preview.renderer.render(__preview.scene,__preview.camera)}',sec)
+        await page.locator('#stage').screenshot(path=str(OUT/f'original-{sec}.png'))
+    # Inspect real relief/parallax without adding an orbit control to the UI.
+    await page.evaluate('''()=>{const p=__preview;__upd(7);p.camera.position.set(.55,1.5,.45);p.camera.lookAt(0,0,0);p.renderer.render(p.scene,p.camera);}''')
+    await page.locator('#stage').screenshot(path=str(OUT/'original-oblique.png'))
+    # Compare actual rendered face/hull pixels with the original page, motion frozen.
+    regions=await page.evaluate('''()=>{
+      const p=__preview;p.camera.position.set(0,1.5,0);p.camera.lookAt(0,0,0);
+      p.cast.forEach(c=>{c.holder.visible=false;c.shadow.visible=false;});p.cast.boatShadows.forEach(c=>c.visible=false);
+      const base=p.page.children.find(m=>m.isMesh&&m.name!=='clean-page');base.material.map=p.cast.boat.texture;
+      p.cast.clean.material.opacity=0;p.cast.boat.holder.visible=false;p.cast.distantBoat.holder.visible=false;
+      p.renderer.render(p.scene,p.camera);
+      window.__sourceBase=base;
+      return [[512,201,526,214],[606,233,622,246],[717,263,735,279],[225,337,280,369],[811,394,863,431]].map(r=>{
+        const project=(x,y)=>{const v=p.page.position.clone().set(x/1536-.5,(512-y)/1536,0);p.page.localToWorld(v);v.project(p.camera);return [(v.x+1)*.5*p.renderer.domElement.clientWidth,(1-v.y)*.5*p.renderer.domElement.clientHeight];};
+        return [...project(r[0],r[1]),...project(r[2],r[3])].map(Math.round);
+      });}''')
+    await page.locator('#stage').screenshot(path=str(OUT/'source-reference.png'))
+    await page.evaluate('''()=>{const p=__preview;p.cast.clean.material.opacity=1;
+      [p.cast.boat,p.cast.distantBoat].forEach(b=>{b.holder.visible=true;b.update(0);b.holder.position.z=.045;b.holder.rotation.set(0,0,0);b.crew.forEach(c=>c.rotation.set(0,0,0));b.pieces.forEach(m=>{m.rotation.set(0,0,0);m.material.forEach(x=>x.opacity=1);});});
+      p.renderer.render(p.scene,p.camera);}''')
+    await page.locator('#stage').screenshot(path=str(OUT/'source-rendered.png'))
+    ref=Image.open(OUT/'source-reference.png').convert('RGB');actual=Image.open(OUT/'source-rendered.png').convert('RGB')
+    log['sourcePixelMAE']=[]
+    for box in regions:
+        error=sum(ImageStat.Stat(ImageChops.difference(ref.crop(box),actual.crop(box))).mean)/3
+        log['sourcePixelMAE'].append(round(error,4));assert error<3.0,(box,error)
+    await browser.close();(OUT/'original.json').write_text(json.dumps(log,ensure_ascii=False,indent=2),encoding='utf-8')
+    assert not log['errors'] and not log['httpFailures'],log
+    print(json.dumps({'sourcePixelMAE':log['sourcePixelMAE'],'relief':log['relief'],'motionSamples':len(log['motionAudit'])},ensure_ascii=True))
+
+
 async def main():
     async with async_playwright() as p:
-        await {'visual':visual,'ar':ar,'regressions':regressions,'lifecycle':lifecycle,'storybook':storybook}[args.mode](p)
+        await {'visual':visual,'ar':ar,'regressions':regressions,'lifecycle':lifecycle,'storybook':storybook,'original':original}[args.mode](p)
 
 if __name__=='__main__':asyncio.run(main())
