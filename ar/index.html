@@ -68,6 +68,14 @@ ol a{color:var(--sand)}
 #hint{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:4;width:min(80vw,420px);text-align:center;
   background:#082c57d9;border-radius:16px;padding:16px;color:#fff;pointer-events:none}
 #hint .frame{width:70%;aspect-ratio:3/2;margin:0 auto 10px;border:3px dashed var(--sand);border-radius:8px}
+.bigsound{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:7;border:0;border-radius:999px;
+  padding:18px 34px;font-size:1.3rem;font-weight:700;background:var(--coral);color:#fff;box-shadow:0 12px 30px -10px #000}
+#stage .bigsound{position:absolute}
+.linkbtn{background:none;border:0;color:var(--sand);text-decoration:underline;font:inherit;padding:0}
+#pageView{position:fixed;inset:0;z-index:8;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  padding-block:calc(12px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-bottom,0px))}
+#pageView img{max-width:100%;max-height:80vh;object-fit:contain}
+#pageView p{color:#fff;text-align:center;padding-inline:16px}
 #err{position:fixed;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;background:var(--abyss);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 #err .box{width:min(520px,100%);display:flex;flex-direction:column;gap:14px}
@@ -102,6 +110,7 @@ ol a{color:var(--sand)}
       <button class="btn main" id="startAR" type="button">開始 AR</button>
       <button class="btn ghost" id="showPreview" type="button">沒有繪本？先看預覽</button>
     </div>
+    <p class="note">手邊沒有印好的繪本？<button class="linkbtn" id="showPage" type="button">在這台裝置顯示第 2 頁</button>，或<a href="../assets/pages/p02.webp" target="_blank" rel="noopener">下載第 2 頁圖檔列印</a>，再用手機對準它。</p>
     <p class="note">iPhone 請用 Safari、Android 請用 Chrome 開啟。</p>
   </section>
 
@@ -109,6 +118,7 @@ ol a{color:var(--sand)}
     <div id="stage">
       <button class="tap" id="pvPlay" type="button">▶ 讓角色跳出來</button>
       <div id="pvCap" hidden></div>
+      <button class="bigsound" id="pvSound" type="button" hidden>🔊 點我聽故事</button>
     </div>
     <p class="note">預覽是把同一組立體角色放在第 2 頁上方，用電腦螢幕模擬手機對準繪本時看到的樣子。</p>
   </section>
@@ -124,6 +134,12 @@ ol a{color:var(--sand)}
 </div>
 <div id="hint" hidden><div class="frame"></div>把繪本第 2 頁整頁放進畫面</div>
 <div id="cap" hidden></div>
+<button class="bigsound" id="sound" type="button" hidden>🔊 點我聽故事</button>
+<div id="pageView" hidden>
+  <img src="../assets/pages/p02.webp" alt="繪本第 2 頁">
+  <p>用另一支手機掃 QR Code 開啟 AR，再對準這個畫面</p>
+  <button class="btn main" id="pageClose" type="button">關閉</button>
+</div>
 <div id="err" hidden><div class="box">
   <h2>相機沒有打開</h2>
   <p id="errMsg"></p>
@@ -148,8 +164,8 @@ const CAPS = [
 ];
 // x, y, w, h：角色在原畫上的位置與大小；path：跳出後的繞行路線
 const CHARS = [
-  { id: 'boat2',    kind: 'stand', x: 0.305,  y: 0.1497,  w: 0.2585, h: 0.1576, z: 0.05, delay: 0.0 },
-  { id: 'crew',     kind: 'stand', x: -0.0934, y: 0.11,   w: 0.2207, h: 0.2227, z: 0.09, delay: 0.3 },
+  { id: 'boat2',    kind: 'stand', x: 0.305,  y: 0.1497,  w: 0.2585, h: 0.1576, z: 0.01, delay: 0.0 },
+  { id: 'crew',     kind: 'stand', x: -0.0934, y: 0.11,   w: 0.2207, h: 0.2227, z: 0.03, delay: 0.3 },
   { id: 'tuna_big', kind: 'fish',  x: -0.2216, y: -0.1755, w: 0.3783, h: 0.1621, delay: 0.6,
     path: { cx: -0.02, cy: -0.13, rx: 0.32, ry: 0.11, z: 0.16, period: 16, phase: 3.4 } },
   { id: 'tuna_m',   kind: 'fish',  x: 0.2044, y: -0.2233, w: 0.2005, h: 0.1146, delay: 0.9,
@@ -168,102 +184,102 @@ const $ = id => document.getElementById(id);
 const ease = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
 const captionAt = t => (CAPS.find(([a, b]) => t >= a && t <= b) || [])[2] || '';
 
-// ---------- 角色貼圖：加上白色剪紙邊 ----------
+// ---------- 立體角色：由原畫輪廓「充氣」成有厚度的 3D 造型 ----------
 const loader = new THREE.TextureLoader();
-function loadImage(src) {
-  return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
-}
-async function makeTextures(id) {
-  const img = await loadImage(`p02/${id}.png`);
-  const pad = 10, w = img.width + pad * 2, h = img.height + pad * 2;
-  const art = document.createElement('canvas'); art.width = w; art.height = h;
-  art.getContext('2d').drawImage(img, pad, pad);
-  const edge = document.createElement('canvas'); edge.width = w; edge.height = h;
-  const g = edge.getContext('2d');
-  const r = Math.max(4, Math.round(img.width / 70));
-  for (let a = 0; a < 16; a++) g.drawImage(img, pad + Math.cos(a / 8 * Math.PI) * r, pad + Math.sin(a / 8 * Math.PI) * r);
-  g.globalCompositeOperation = 'source-in'; g.fillStyle = '#fffdf6'; g.fillRect(0, 0, w, h);
-  const t1 = new THREE.CanvasTexture(art), t2 = new THREE.CanvasTexture(edge);
-  t1.colorSpace = t2.colorSpace = THREE.SRGBColorSpace;
-  return { art: t1, edge: t2, scale: w / img.width, ratio: h / w };
+const b64 = (s, T) => { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
+let meshData = null;
+async function loadMeshes() {
+  if (!meshData) meshData = await (await fetch('p02/meshes.json')).json();
+  return meshData;
 }
 
-// 魚身擺動：尾巴（貼圖左側）擺得最多
+// 魚身擺動：尾巴（左側）往兩側擺，像真的在游
 function wiggle(mat, uniforms) {
   mat.onBeforeCompile = sh => {
     sh.uniforms.uTime = uniforms.uTime; sh.uniforms.uAmp = uniforms.uAmp;
     sh.vertexShader = 'uniform float uTime;\nuniform float uAmp;\n' + sh.vertexShader.replace('#include <begin_vertex>',
-      '#include <begin_vertex>\nfloat wt = 1.0 - uv.x;\ntransformed.y += sin(uv.x * 7.0 - uTime * 9.0) * uAmp * wt * wt;\ntransformed.z += sin(uv.x * 5.0 - uTime * 9.0) * uAmp * 0.8 * wt * wt;');
+      '#include <begin_vertex>\nfloat wt = 1.0 - uv.x;\ntransformed.z += sin(uv.x * 6.0 - uTime * 8.0) * uAmp * wt * wt;\ntransformed.y += sin(uv.x * 6.0 - uTime * 8.0) * uAmp * 0.15 * wt * wt;');
   };
 }
 
+function addLights(parent) {
+  parent.add(new THREE.HemisphereLight(0xffffff, 0x3a5a80, 2.4));
+  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  sun.position.set(-0.4, -0.6, 1.2);       // 從讀者這側的左上方打光，凸起處有明暗
+  parent.add(sun);
+}
+
 async function buildCast(parent) {
+  const meshes = await loadMeshes();
+  addLights(parent);
   const shadowTex = (() => {
     const c = document.createElement('canvas'); c.width = c.height = 64;
     const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    gr.addColorStop(0, 'rgba(0,10,30,0.55)'); gr.addColorStop(1, 'rgba(0,10,30,0)');
+    gr.addColorStop(0, 'rgba(0,10,30,0.6)'); gr.addColorStop(1, 'rgba(0,10,30,0)');
     g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
     return new THREE.CanvasTexture(c);
   })();
   const cast = [];
   for (const def of CHARS) {
-    const tx = await makeTextures(def.id);
-    const w = def.w * tx.scale, h = w * tx.ratio;
-    const segs = def.kind === 'fish' ? 24 : 1;
-    const uniforms = { uTime: { value: 0 }, uAmp: { value: def.kind === 'fish' ? def.h * 0.12 : 0 } };
-    const artMat = new THREE.MeshBasicMaterial({ map: tx.art, transparent: true, side: THREE.DoubleSide, depthWrite: false, alphaTest: 0.02 });
-    const edgeMat = new THREE.MeshBasicMaterial({ map: tx.edge, transparent: true, side: THREE.DoubleSide, depthWrite: false, alphaTest: 0.02 });
-    if (def.kind === 'fish') { wiggle(artMat, uniforms); wiggle(edgeMat, uniforms); }
-    const geo = new THREE.PlaneGeometry(w, h, segs, 1);
-    const holder = new THREE.Group();
-    const body = new THREE.Group();
-    const edge = new THREE.Mesh(geo, edgeMat); edge.position.z = -0.002; edge.renderOrder = 1;
-    const art = new THREE.Mesh(geo, artMat); art.renderOrder = 2;
-    body.add(edge, art); holder.add(body);
-    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(def.w * 1.1, def.w * 0.45),
+    const m = meshes[def.id];
+    const tex = await loader.loadAsync(`p02/${def.id}.png`);
+    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(b64(m.p, Float32Array), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(b64(m.u, Float32Array), 2));
+    geo.setIndex(new THREE.BufferAttribute(b64(m.i, m.i32 ? Uint32Array : Uint16Array), 1));
+    geo.computeVertexNormals();
+    geo.scale(def.w, def.w, def.w);             // 依原畫大小縮放（寬度 = def.w）
+    const uniforms = { uTime: { value: 0 }, uAmp: { value: def.kind === 'fish' ? def.h * 0.16 : 0 } };
+    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0, alphaTest: 0.35, side: THREE.DoubleSide });
+    if (def.kind === 'fish') wiggle(mat, uniforms);
+    const body = new THREE.Mesh(geo, mat);
+    const pivot = new THREE.Group();            // 控制「站起來」的角度
+    const holder = new THREE.Group();           // 控制位置與方向
+    pivot.add(body); holder.add(pivot);
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(def.w * 1.1, def.w * 0.5),
       new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0 }));
-    shadow.renderOrder = 0;
     parent.add(shadow, holder);
-    cast.push({ def, holder, body, shadow, uniforms, facing: 1 });
+    cast.push({ def, holder, pivot, body, shadow, uniforms, heading: 0 });
   }
   return cast;
 }
 
-// 每一格更新角色：t = 角色出場後經過的秒數
-const _q = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _id = new THREE.Quaternion();
-function updateCast(cast, t, camera, parent) {
-  parent.updateMatrixWorld();
-  parent.getWorldQuaternion(_qp).invert();
-  const face = _qp.clone().multiply(camera.quaternion);    // 面向鏡頭的方向
+// 每一格更新角色：t = 出場後經過的秒數
+function updateCast(cast, t) {
   for (const c of cast) {
-    const { def, holder, body, shadow, uniforms } = c;
+    const { def, holder, pivot, body, shadow, uniforms } = c;
     const k = ease((t - def.delay) / RISE);
     const tt = Math.max(0, t - def.delay);
     uniforms.uTime.value = tt;
-    let x = def.x, y = def.y, z = 0, dx = 1;
+    let x = def.x, y = def.y, z = 0, target = 0;
     if (def.path) {
       const p = def.path, a = p.phase + tt / p.period * Math.PI * 2;
       const px = p.cx + Math.cos(a) * p.rx, py = p.cy + Math.sin(a) * p.ry;
-      dx = -Math.sin(a) * p.rx;
+      target = Math.atan2(Math.cos(a) * p.ry, -Math.sin(a) * p.rx);   // 沿著路線前進的方向
       x = def.x + (px - def.x) * k; y = def.y + (py - def.y) * k;
       z = p.z * k + Math.sin(tt * 1.7 + p.phase) * 0.012 * k;
     } else {
-      z = def.z * k + Math.sin(tt * 1.4 + def.delay) * 0.008 * k;
+      z = def.z * k + Math.sin(tt * 1.4 + def.delay) * 0.006 * k;
     }
-    holder.position.set(x, y, z + 0.003);
-    holder.quaternion.copy(_id).slerp(face, k);
-    // 魚和鳥轉向游動方向（原畫都朝右）
-    if (def.path && k > 0.5) c.facing += ((dx >= 0 ? 1 : -1) - c.facing) * 0.08;
+    // 方向：從原畫的朝向（0）慢慢轉到前進方向
+    let d = target - c.heading; d = Math.atan2(Math.sin(d), Math.cos(d));
+    c.heading += d * Math.min(1, 0.06 + 0.1 * k) * k;
+    holder.position.set(x, y, z + 0.002);
+    holder.rotation.set(0, 0, c.heading);
+    // 站起來：平躺在紙上（0）→ 直立（π/2）；海鷗保持略為傾斜，從上面也看得到翅膀
+    const up = def.kind === 'bird' ? 1.0 : Math.PI / 2;
+    pivot.rotation.set(up * k, 0, 0);
     const s = 1 + (POP - 1) * k;
     let sy = s;
-    if (def.kind === 'bird') sy = s * (0.72 + 0.28 * Math.abs(Math.sin(tt * 7 + def.delay * 5)));
-    body.scale.set(s * c.facing, sy, s);
-    body.rotation.z = def.kind === 'stand' ? Math.sin(tt * 1.3 + def.delay * 3) * 0.05 * k
-                    : def.kind === 'fish' ? Math.sin(tt * 1.7) * 0.06 * k : 0;
-    shadow.position.set(x, y - z * 0.25, 0.001);
-    shadow.material.opacity = (def.kind === 'bird' ? 0.35 : 0.7) * k / (1 + z * 4);
+    if (def.kind === 'bird') sy = s * (0.7 + 0.3 * Math.abs(Math.sin(tt * 7 + def.delay * 5)));
+    body.scale.set(s, sy, s);
+    body.rotation.z = def.kind === 'stand' ? Math.sin(tt * 1.3 + def.delay * 3) * 0.04 * k : 0;
+    body.position.y = def.kind === 'stand' ? def.h * 0.5 * k : 0;     // 站立時腳底貼著紙面
+    shadow.position.set(x, y, 0.001);
+    shadow.material.opacity = (def.kind === 'bird' ? 0.35 : 0.75) * k / (1 + z * 4);
     const ss = 1 + z * 1.5;
-    shadow.scale.set(ss, ss, 1);
+    shadow.scale.set(ss, ss * (def.kind === 'stand' ? 0.6 : 1), 1);
   }
 }
 
@@ -275,6 +291,10 @@ function makeNarration() {
 }
 function unlockAudio(a) {
   return a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+}
+// 播放旁白；手機擋住自動播放時，跳出「點我聽故事」按鈕讓使用者直接點
+function playNarration(a, btn) {
+  a.play().then(() => { btn.hidden = true; }).catch(() => { btn.hidden = false; });
 }
 
 // ---------- 開啟環境判斷 ----------
@@ -314,12 +334,21 @@ $('errPreview').addEventListener('click', () => {
 
 // ---------- 預覽模式 ----------
 let preview = null;
+$('showPage').addEventListener('click', () => { $('pageView').hidden = false; });
+$('pageClose').addEventListener('click', () => { $('pageView').hidden = true; });
 $('showPreview').addEventListener('click', () => {
   $('preview').hidden = false;
   $('preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
+let pvAudio = null;
 $('pvPlay').addEventListener('click', async () => {
   $('pvPlay').hidden = true;
+  if (!pvAudio) {
+    pvAudio = makeNarration();
+    pvAudio.onended = () => { $('pvPlay').hidden = false; $('pvPlay').textContent = '↻ 再看一次'; };
+  }
+  pvAudio.currentTime = 0;
+  playNarration(pvAudio, $('pvSound'));            // 在點擊當下就開始播放
   if (!preview) {
     const stage = $('stage');
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -335,8 +364,8 @@ $('pvPlay').addEventListener('click', async () => {
     pageTex.colorSpace = THREE.SRGBColorSpace;
     page.add(new THREE.Mesh(new THREE.PlaneGeometry(PAGE_W, PAGE_H), new THREE.MeshBasicMaterial({ map: pageTex })));
     const cast = await buildCast(page);
-    const audio = makeNarration();
-    preview = { renderer, scene, camera, page, cast, audio, t0: performance.now() };
+    const audio = pvAudio;
+    preview = { renderer, scene, camera, page, cast, t0: performance.now() };
     new ResizeObserver(() => {
       renderer.setSize(stage.clientWidth, stage.clientHeight);
       camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix();
@@ -346,7 +375,7 @@ $('pvPlay').addEventListener('click', async () => {
       const a = Math.sin(t * 0.25) * 0.5;          // 鏡頭左右慢慢繞，看出立體感
       camera.position.set(Math.sin(a) * 1.05, 0.85, Math.cos(a) * 1.05);
       camera.lookAt(0, 0.08, 0);
-      updateCast(cast, t, camera, page);
+      updateCast(cast, t);
       const text = captionAt(audio.currentTime);
       $('pvCap').hidden = !text || audio.paused;
       $('pvCap').textContent = text;
@@ -354,10 +383,8 @@ $('pvPlay').addEventListener('click', async () => {
     });
   }
   preview.t0 = performance.now();
-  preview.audio.currentTime = 0;
-  preview.audio.play().catch(() => {});
-  preview.audio.onended = () => { $('pvPlay').hidden = false; $('pvPlay').textContent = '↻ 再看一次'; };
 });
+$('pvSound').addEventListener('click', () => playNarration(pvAudio, $('pvSound')));
 
 // ---------- AR 模式 ----------
 let mindar = null, audio = null, started = null, visible = false;
@@ -375,6 +402,11 @@ $('startAR').addEventListener('click', async () => {
 
   $('intro').hidden = true; $('ar').hidden = false; $('hud').hidden = false; $('hint').hidden = false;
 
+  // MindAR 建立的相機畫面要設成靜音，嚴格的手機瀏覽器才肯自動播放
+  new MutationObserver((list, obs) => {
+    const v = $('ar').querySelector('video');
+    if (v) { v.muted = true; v.playsInline = true; obs.disconnect(); }
+  }).observe($('ar'), { childList: true, subtree: true });
   mindar = new MindARThree({ container: $('ar'), imageTargetSrc: 'p02.mind', uiScanning: 'no', filterMinCF: 0.0001, filterBeta: 0.001 });
   const { renderer, scene, camera } = mindar;
   const anchor = mindar.addAnchor(0);
@@ -383,16 +415,18 @@ $('startAR').addEventListener('click', async () => {
   anchor.onTargetFound = () => {
     visible = true; $('hint').hidden = true;
     if (started === null) { started = performance.now(); audio.currentTime = 0; }
-    if (!audio.ended) audio.play().catch(() => {});
+    if (!audio.ended) playNarration(audio, $('sound'));
   };
-  anchor.onTargetLost = () => { visible = false; $('hint').hidden = false; audio.pause(); };
+  anchor.onTargetLost = () => { visible = false; $('hint').hidden = false; audio.pause(); $('sound').hidden = true; };
   audio.addEventListener('ended', () => { $('replay').hidden = false; });
 
   try { await mindar.start(); }
   catch (e) { try { await mindar.stop(); } catch (_) {} $('ar').innerHTML = ''; showError(e); return; }
+  const camVideo = $('ar').querySelector('video');
+  if (camVideo && camVideo.paused) { camVideo.muted = true; camVideo.play().catch(() => {}); }
 
   renderer.setAnimationLoop(() => {
-    if (started !== null) updateCast(cast, (performance.now() - started) / 1000, camera, anchor.group);
+    if (started !== null) updateCast(cast, (performance.now() - started) / 1000);
     const text = visible && !audio.paused ? captionAt(audio.currentTime) : '';
     $('cap').hidden = !text;
     if ($('cap').textContent !== text) $('cap').textContent = text;
@@ -401,9 +435,10 @@ $('startAR').addEventListener('click', async () => {
 });
 
 $('replay').addEventListener('click', () => {
-  audio.currentTime = 0; audio.play(); $('replay').hidden = true;
+  audio.currentTime = 0; playNarration(audio, $('sound')); $('replay').hidden = true;
   started = performance.now();                      // 角色重新從紙上跳出來
 });
+$('sound').addEventListener('click', () => playNarration(audio, $('sound')));
 $('mute').addEventListener('click', () => {
   audio.muted = !audio.muted;
   $('mute').textContent = audio.muted ? '🔇 聲音關' : '🔊 聲音開';
@@ -411,7 +446,7 @@ $('mute').addEventListener('click', () => {
 $('exit').addEventListener('click', async () => {
   if (mindar) { mindar.renderer.setAnimationLoop(null); await mindar.stop(); $('ar').innerHTML = ''; }
   if (audio) audio.pause();
-  ['ar', 'hud', 'hint', 'cap', 'replay'].forEach(id => $(id).hidden = true);
+  ['ar', 'hud', 'hint', 'cap', 'replay', 'sound'].forEach(id => $(id).hidden = true);
   $('intro').hidden = false;
   visible = false; started = null;
 });
