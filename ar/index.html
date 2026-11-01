@@ -104,7 +104,7 @@ ol a{color:var(--sand)}
     <ol>
       <li>翻到繪本第 2 頁（或在另一個螢幕打開<a href="../assets/pages/p02.webp" target="_blank" rel="noopener">第 2 頁大圖</a>）。</li>
       <li>按「開始 AR」，允許使用相機，並打開聲音。</li>
-      <li>手機<strong>橫著拿</strong>，先接近正對書頁、整頁四周留一點空間；辨識後再稍微斜著看。</li>
+      <li>手機<strong>橫著拿</strong>，正對書頁、整頁四周留一點空間，角色會保持原繪本的方向浮起來。</li>
     </ol>
     <div class="handoff" id="handoff" hidden>
       <div class="qr" id="qr"></div>
@@ -125,7 +125,7 @@ ol a{color:var(--sand)}
       <button class="bigsound" id="pvSound" type="button" hidden>🔊 點我聽故事</button>
     </div>
     <p class="note" id="pvStatus" role="status"></p>
-    <p class="note">拖曳可轉動視角，雙指或滾輪可縮放，近看三位漁夫、完整鮪魚和漁船。AR 和預覽使用同一組角色。</p>
+    <p class="note">維持原繪本的構圖與方向，看海鷗拍翅滑翔、鮪魚擺尾，以及船員在船邊合力起魚。</p>
   </section>
 </main>
 
@@ -158,7 +158,6 @@ ol a{color:var(--sand)}
 <script type="module">
 import * as THREE from 'three';
 import { MindARThree } from 'mindar-image-three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ---------- 本頁內容 ----------
 // 頁面座標：寬 = 1，原點在頁面中心，x 向右、y 向上、z 朝讀者（離開紙面）
@@ -168,21 +167,21 @@ const CAPS = [
   [6.45, 10.49, '在海中拉開長長的主繩，垂掛支繩與魚鉤。'],
   [10.99, 16.53, '此時正值東港黑鮪魚季，船員們合力捕撈體型碩大的黑鮪魚。'],
 ];
-// x, y, w, h：角色在原畫上的位置與大小；path：跳出後的繞行路線
+// 保留原繪本的角色構圖；小範圍游動，不沿環形路線翻轉角色。
 const CHARS = [
-  { id: 'tuna_big', kind: 'fish',  x: -0.2216, y: -0.1755, w: 0.34, h: 0.1434, delay: 0.6,
-    path: { cx: -0.03, cy: -0.17, rx: 0.24, ry: 0.07, z: 0.13, period: 16, phase: 3.4 } },
+  { id: 'tuna_big', kind: 'fish',  x: -0.2216, y: -0.1755, w: 0.40, h: 0.1688, delay: 0.6,
+    path: { cx: -0.22, cy: -0.18, rx: 0.035, ry: 0.018, z: 0.075, period: 16, phase: 3.4 } },
   { id: 'tuna_m',   kind: 'fish',  x: 0.2044, y: -0.2233, w: 0.2005, h: 0.1146, delay: 0.9,
-    path: { cx: 0.12, cy: -0.21, rx: 0.22, ry: 0.05, z: 0.09, period: 12, phase: 0.2 } },
+    path: { cx: 0.19, cy: -0.23, rx: 0.035, ry: 0.014, z: 0.055, period: 12, phase: 0.2 } },
   { id: 'tuna_r',   kind: 'fish',  x: 0.4228, y: -0.1429, w: 0.1322, h: 0.0775, delay: 1.2,
-    path: { cx: 0.27, cy: -0.08, rx: 0.12, ry: 0.045, z: 0.15, period: 10, phase: 0.6 } },
+    path: { cx: 0.39, cy: -0.14, rx: 0.018, ry: 0.012, z: 0.065, period: 10, phase: 0.6 } },
   { id: 'gull1',    kind: 'bird',  x: -0.3626, y: 0.29,   w: 0.099,  h: 0.0645, delay: 0.4,
-    path: { cx: -0.09, cy: 0.20, rx: 0.23, ry: 0.055, z: 0.24, period: 11, phase: 3.0 } },
+    path: { cx: -0.36, cy: 0.278, rx: 0.028, ry: 0.014, z: 0.10, period: 11, phase: 3.0 } },
   { id: 'gull2',    kind: 'bird',  x: 0.1158, y: 0.2448,  w: 0.099,  h: 0.0508, delay: 0.8,
-    path: { cx: 0.16, cy: 0.22, rx: 0.17, ry: 0.045, z: 0.20, period: 9, phase: 0.1 } },
+    path: { cx: 0.14, cy: 0.26, rx: 0.055, ry: 0.018, z: 0.115, period: 9, phase: 0.1 } },
 ];
 const RISE = 2.2;   // 從紙面浮起所需秒數
-const POP = 1.16;   // 跳出後放大倍率，保留整頁取景的邊界
+const POP = 1.06;   // 只輕微放大，維持原畫構圖
 
 const $ = id => document.getElementById(id);
 const ease = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
@@ -206,6 +205,37 @@ function wiggle(mat, uniforms) {
     sh.uniforms.uTime = uniforms.uTime; sh.uniforms.uAmp = uniforms.uAmp;
     sh.vertexShader = 'uniform float uTime;\nuniform float uAmp;\n' + sh.vertexShader.replace('#include <begin_vertex>',
       '#include <begin_vertex>\nfloat wt = 1.0 - uv.x;\ntransformed.z += sin(uv.x * 6.0 - uTime * 8.0) * uAmp * wt * wt;\ntransformed.y += sin(uv.x * 6.0 - uTime * 8.0) * uAmp * 0.15 * wt * wt;');
+  };
+}
+
+// 在原有完整網格上做兩個肩關節。軀幹、頭、尾巴保持原比例，
+// 上下翼各自繞肩軸轉動，避免把整隻海鷗壓扁當作拍翅。
+function wingRig(mat, uniforms, id, w, ratio) {
+  const roots = id === 'gull1' ? [[.59,.43,-.70,.70],[.72,.36,.60,-.80]]
+    : [[.52,.47,-.90,.30],[.61,.55,.70,.70]];
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uFlap = uniforms.uFlap;
+    sh.uniforms.uWing1 = { value: new THREE.Vector4(...roots[0]) };
+    sh.uniforms.uWing2 = { value: new THREE.Vector4(...roots[1]) };
+    sh.uniforms.uBirdSize = { value: new THREE.Vector2(w, ratio) };
+    const code = `
+      uniform float uFlap;
+      uniform vec4 uWing1, uWing2;
+      uniform vec2 uBirdSize;
+      vec3 wingRotate(vec3 p, vec3 axis, float angle) {
+        return p*cos(angle)+cross(axis,p)*sin(angle)+axis*dot(axis,p)*(1.0-cos(angle));
+      }
+      vec3 wingPoint(vec3 p, vec4 joint, float beat) {
+        float reach=dot(uv-joint.xy,normalize(joint.zw));
+        float weight=smoothstep(.055,.32,reach);
+        weight*=smoothstep(1.0,1.6,length((uv-vec2(.78,.46))/vec2(.18,.14)));
+        vec3 root=vec3((joint.x-.5)*uBirdSize.x,(joint.y-.5)*uBirdSize.x*uBirdSize.y,0.0);
+        vec3 axis=normalize(vec3(-joint.w*uBirdSize.y,joint.z,0.0));
+        return root+wingRotate(p-root,axis,beat*weight);
+      }
+    `;
+    sh.vertexShader = code + sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\ntransformed=wingPoint(transformed,uWing1,uFlap);\ntransformed=wingPoint(transformed,uWing2,uFlap*.85);');
   };
 }
 
@@ -240,14 +270,15 @@ async function artMesh(id, w, fish) {
   const { geometry, tex, m } = await artAssets.get(asset);
   const geo = geometry.clone();
   geo.scale(w, w, w);
-  const uniforms = { uTime: { value: 0 }, uAmp: { value: fish ? w * m.ratio * 0.16 : 0 } };
+  const uniforms = { uTime: { value: 0 }, uAmp: { value: fish ? w * m.ratio * 0.12 : 0 }, uFlap: { value: 0 } };
   const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 1, metalness: 0 });
   if (fish) wiggle(mat, uniforms);
+  else wingRig(mat, uniforms, id, w, m.ratio);
   return { mesh: new THREE.Mesh(geo, mat), uniforms };
 }
 
 // ---------- 3D 漁船與三位漁夫（原畫被船身擋住，改用完整的立體模型） ----------
-const BOAT = { x: -0.19, y: 0.12, delay: 0.2 };
+const BOAT = { x: -0.21, y: 0.025, delay: 0.2, pictureTilt: -1.20 };
 const paperTexture = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const ctx = c.getContext('2d'), pixels = ctx.createImageData(128, 128);
@@ -322,6 +353,7 @@ async function buildBoat(parent, fishMaker, distant = false) {
   const L = 0.4, W = 0.12, D = 0.07;           // 船長、船寬、甲板高度
   const boat = new THREE.Group();
   boat.name = distant ? 'distant-boat' : 'main-boat';
+  boat.rotation.x = BOAT.pictureTilt;           // 讓船側、人物正面朝讀者，與原繪本一致
   const hullShape = new THREE.Shape();
   hullShape.moveTo(-L / 2, 0.016); hullShape.lineTo(L * 0.32, 0.004);
   hullShape.quadraticCurveTo(L * 0.5, 0.006, L * 0.56, D + 0.012); hullShape.lineTo(-L / 2, D); hullShape.closePath();
@@ -356,56 +388,92 @@ async function buildBoat(parent, fishMaker, distant = false) {
     plank.position.set(-0.035 + i * 0.03, 0, D + .014); boat.add(plank);
   }
   // 三位漁夫（顏色取自原畫）
-  const crew = [
-    makeFisherman({ shirt: 0x2f5aa8, overall: 0xf2c22e, cap: 0x2f5aa8 }),
-    makeFisherman({ shirt: 0xf4f1ea, overall: 0xf07a2a, cap: 0xf6f6f6, helmet: true }),
-    makeFisherman({ shirt: 0x2f5aa8, overall: 0xf2c22e, cap: 0x3a8a4a }),
+  const crewOptions = [
+    { shirt: 0x2f5aa8, overall: 0xf2c22e, cap: 0x2f5aa8 },
+    { shirt: 0xf4f1ea, overall: 0xf07a2a, cap: 0xf6f6f6, helmet: true },
+    { shirt: 0x2f5aa8, overall: 0xf2c22e, cap: 0x3a8a4a },
   ];
+  const crew = (distant ? [crewOptions[0], crewOptions[2]] : crewOptions).map(makeFisherman);
   crew.forEach((f, i) => {
     f.name = `${distant ? 'distant' : 'main'}-fisherman-${i + 1}`;
     f.position.set(-0.035 + i * 0.065, -W * 0.22, D + 0.013);
     f.scale.setScalar(1.3); boat.add(f);
   });
-  // 被拉上船的黑鮪魚（掛在船舷外）
-  const tuna = await fishMaker('tuna_big', 0.15);
-  tuna.mesh.name = distant ? 'distant-hanging-tuna' : 'hanging-tuna';
-  const tunaHolder = new THREE.Group();
-  tunaHolder.position.set(0.025, -W / 2 - 0.035, D * 0.6);
-  tunaHolder.rotation.set(Math.PI / 2, 0, 0);
-  tuna.mesh.rotation.z = 1.25;                  // 頭朝上
-  tunaHolder.add(tuna.mesh); boat.add(tunaHolder);
-  const lineGeo = new THREE.BufferGeometry().setFromPoints(Array.from({ length: 12 }, () => new THREE.Vector3()));
-  const line = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: 0xece3cd }));
-  boat.add(line);
+  // 延繩釣起魚示意：魚先到船邊，收線經船舷導輪，船員以起魚鉤竿協助。
+  // 不把六隻手各接一條承重繩到魚嘴，也不讓魚高吊在燈架上。
+  const fairlead = new THREE.Vector3(.035, -W / 2 - .006, D + .041);
+  const roller = new THREE.Mesh(new THREE.CylinderGeometry(.006, .006, .022, 12), paperMat(0x566874));
+  roller.rotation.z = Math.PI / 2; roller.position.copy(fairlead); boat.add(roller);
+  for (const sx of [-1, 1]) {
+    const post = box(.003, .009, .03, 0xdce3e4);
+    post.position.copy(fairlead).add(new THREE.Vector3(sx * .012, 0, -.015)); boat.add(post);
+  }
+  const lineGeo = new THREE.BufferGeometry().setFromPoints(Array.from({ length: 3 }, () => new THREE.Vector3()));
+  const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xe8d8ae }));
+  line.name = 'hauling-leader'; boat.add(line);
+  let tuna = null, tunaHolder = null;
+  const gaffs = [];
+  if (!distant) {
+    tuna = await fishMaker('tuna_big', .18);
+    tuna.mesh.name = 'hanging-tuna';
+    tunaHolder = new THREE.Group();
+    tunaHolder.position.set(.035, -W / 2 - .055, .008);
+    tunaHolder.rotation.set(Math.PI / 2, 0, 0);
+    tuna.mesh.rotation.z = 1.24;                 // 頭朝上，尾鰭接近海面
+    tunaHolder.add(tuna.mesh); boat.add(tunaHolder);
+    for (const [person, hand, flank] of [[0,1,-1],[2,0,1]]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(.0015, .0015, 1, 8), paperMat(0x9f7843));
+      const hookGeo = new THREE.BufferGeometry().setFromPoints(Array.from({ length: 4 }, () => new THREE.Vector3()));
+      const hook = new THREE.Line(hookGeo, new THREE.LineBasicMaterial({ color: 0xdce4e8 }));
+      boat.add(pole, hook);
+      gaffs.push({ hand: crew[person].userData.hands[hand], pole, hook, flank });
+    }
+  }
 
   const holder = new THREE.Group(); holder.add(boat);
-  holder.position.set(distant ? 0.30 : BOAT.x, distant ? 0.18 : BOAT.y, 0);
+  holder.position.set(distant ? 0.31 : BOAT.x, distant ? 0.10 : BOAT.y, 0);
   parent.add(holder);
-  const v1 = new THREE.Vector3(), v2 = new THREE.Vector3();
+  const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), direction = new THREE.Vector3();
+  const yAxis = new THREE.Vector3(0, 1, 0);
+  const fishing = { line, fairlead, mouth: new THREE.Vector3(), gaffs, outboard: false };
   return {
     update(t) {
       const k = ease((t - BOAT.delay) / RISE), tt = Math.max(0, t - BOAT.delay);
-      const s = Math.max(0.001, k) * (distant ? 0.40 : 0.90);
+      const s = Math.max(0.001, k) * (distant ? 0.57 : 1.10);
       holder.scale.set(s, s, s);
-      holder.position.z = 0.028 * k + Math.sin(tt * 1.6) * 0.004 * k;
-      holder.rotation.set(Math.sin(tt * 1.3) * 0.05 * k, Math.sin(tt * 0.9) * 0.025 * k, 0);
+      holder.position.z = .065 * k + Math.sin(tt * 1.2) * .002 * k;
+      holder.rotation.set(0, 0, Math.sin(tt * .9) * .008 * k);
       crew.forEach((f, i) => {
-        const pull = Math.sin(tt * 2.6 + i * 0.9);
-        f.rotation.x = 0.12 + pull * 0.1;                     // 身體往後仰著拉
-        f.userData.arms.forEach(a => { a.rotation.x = -1.2 - pull * 0.35; });
+        const pull = Math.sin(tt * 1.8 + i * .4);
+        f.rotation.x = .08 + pull * .035;
+        f.userData.arms.forEach(a => { a.rotation.x = -1.18 - pull * .12; });
       });
-      tunaHolder.position.z = D * 0.55 + Math.sin(tt * 2.6) * 0.02;
-      tuna.uniforms.uTime.value = tt * 1.6;                   // 魚掙扎擺動
-      tuna.mesh.rotation.z = 1.25 + Math.sin(tt * 5) * 0.12;
-      tuna.mesh.localToWorld(v2.set(0.15 * 0.47, 0, 0)); boat.worldToLocal(v2);
-      crew.flatMap(f => f.userData.hands).forEach((hand, i) => {
-        hand.getWorldPosition(v1); boat.worldToLocal(v1);
-        lineGeo.attributes.position.setXYZ(i * 2, v1.x, v1.y, v1.z);
-        lineGeo.attributes.position.setXYZ(i * 2 + 1, v2.x, v2.y, v2.z);
-      });
+      if (tuna) {
+        tunaHolder.position.z = .008 + Math.sin(tt * 1.4) * .004;
+        tuna.uniforms.uTime.value = tt * .7;
+        tuna.mesh.rotation.z = 1.24 + Math.sin(tt * 2.2) * .025;
+        tuna.mesh.localToWorld(v2.set(.18 * .47, 0, 0)); boat.worldToLocal(v2);
+        fishing.mouth.copy(v2); fishing.outboard = v2.y < -W / 2 && v2.z < fairlead.z;
+        for (const gaff of gaffs) {
+          gaff.hand.getWorldPosition(v1); boat.worldToLocal(v1);
+          const tip = tuna.mesh.localToWorld(new THREE.Vector3(.18 * .32, gaff.flank * .005, .002));
+          boat.worldToLocal(tip);
+          direction.copy(tip).sub(v1);
+          const grip = v1.clone().addScaledVector(direction, -.20);
+          gaff.pole.position.copy(grip).add(tip).multiplyScalar(.5);
+          gaff.pole.scale.y = grip.distanceTo(tip);
+          gaff.pole.quaternion.setFromUnitVectors(yAxis, direction.normalize());
+          for (let j = 0; j < 4; j++) gaff.hook.geometry.attributes.position.setXYZ(j,
+            tip.x + Math.sin(j / 3 * Math.PI) * .004, tip.y - Math.sin(j / 3 * Math.PI) * .003, tip.z - j * .001);
+          gaff.hook.geometry.attributes.position.needsUpdate = true;
+        }
+      } else { v2.set(.24, -W / 2 - .12, -.06); fishing.mouth.copy(v2); }
+      lineGeo.attributes.position.setXYZ(0, -.07, W * .18, D + .036);
+      lineGeo.attributes.position.setXYZ(1, fairlead.x, fairlead.y, fairlead.z);
+      lineGeo.attributes.position.setXYZ(2, v2.x, v2.y, v2.z);
       lineGeo.attributes.position.needsUpdate = true;
     },
-    holder, boat, crew, tuna: tuna.mesh,
+    holder, boat, crew, tuna: tuna?.mesh, fishing,
   };
 }
 
@@ -458,32 +526,27 @@ function updateCast(cast, t) {
     const k = ease((t - def.delay) / RISE);
     const tt = Math.max(0, t - def.delay);
     uniforms.uTime.value = tt;
-    let x = def.x, y = def.y, z = 0, target = 0;
+    let x = def.x, y = def.y, z = 0;
     if (def.path) {
       const p = def.path, a = p.phase + tt / p.period * Math.PI * 2;
       const px = p.cx + Math.cos(a) * p.rx, py = p.cy + Math.sin(a) * p.ry;
-      target = Math.atan2(Math.cos(a) * p.ry, -Math.sin(a) * p.rx);   // 沿著路線前進的方向
       x = def.x + (px - def.x) * k; y = def.y + (py - def.y) * k;
-      z = p.z * k + Math.sin(tt * 1.7 + p.phase) * 0.012 * k;
+      z = p.z * k + Math.sin(tt * 1.3 + p.phase) * 0.004 * k;
     } else {
       z = def.z * k + Math.sin(tt * 1.4 + def.delay) * 0.006 * k;
     }
-    // 方向：從原畫的朝向（0）慢慢轉到前進方向
-    let d = target - c.heading; d = Math.atan2(Math.sin(d), Math.cos(d));
-    c.heading += d * Math.min(1, 0.06 + 0.1 * k) * k;
     holder.position.set(x, y, z + 0.002);
-    holder.rotation.set(0, 0, c.heading);
-    // 浮起來：平躺在紙上（0）→ 側起；手機多半從上往下看，所以不直立
-    const up = def.kind === 'bird' ? 1.0 : 0.45;   // 魚只微微側起，從上往下看也是完整的魚身
-    // 魚掉頭往回游時，側起的方向跟著反過來，讓讀者（書頁下緣）一直看到魚的側面，不會看到背上的接縫
-    const lean = def.kind === 'bird' ? 1 : Math.max(-1, Math.min(1, Math.cos(c.heading) * 2.5));
-    pivot.rotation.set(up * lean * k, 0, 0);
+    c.heading = 0;
+    holder.rotation.set(0, 0, 0);
+    pivot.rotation.set(0, 0, 0);               // 維持原畫側向，魚和海鷗都不翻面
     const s = 1 + (POP - 1) * k;
-    let sy = s;
-    if (def.kind === 'bird') sy = s * (0.7 + 0.3 * Math.abs(Math.sin(tt * 7 + def.delay * 5)));
-    body.scale.set(s, sy, s);
-    body.rotation.z = def.kind === 'stand' ? Math.sin(tt * 1.3 + def.delay * 3) * 0.04 * k : 0;
-    body.position.y = def.kind === 'stand' ? def.h * 0.5 * k : 0;     // 站立時腳底貼著紙面
+    body.scale.setScalar(s);
+    body.rotation.z = Math.sin(tt * .7 + def.delay) * (def.kind === 'bird' ? .018 : .012) * k;
+    if (def.kind === 'bird') {
+      const phase = (tt + def.delay * 2) % 6.8;
+      const flapWindow = ease(phase / .3) * ease((2.7 - phase) / .4);
+      uniforms.uFlap.value = (Math.sin(tt * 8) * .60 * flapWindow + Math.sin(tt * .8) * .035) * k;
+    }
     shadow.position.set(x, y, 0.001);
     shadow.material.opacity = (def.kind === 'bird' ? 0.35 : 0.75) * k / (1 + z * 4);
     const ss = 1 + z * 1.5;
@@ -565,9 +628,8 @@ $('showPreview').addEventListener('click', () => {
 let pvAudio = null;
 function renderPreview() {
   if (!preview || activeMode !== 'preview' || document.hidden) return;
-  const { renderer, scene, camera, cast, controls } = preview;
+  const { renderer, scene, camera, cast } = preview;
   updateCast(cast, (performance.now() - preview.t0) / 1000);
-  controls.update();
   const text = captionAt(pvAudio.currentTime);
   $('pvCap').hidden = !text || pvAudio.paused; $('pvCap').textContent = text;
   renderer.render(scene, camera);
@@ -597,7 +659,7 @@ $('pvPlay').addEventListener('click', async () => {
     renderer.setSize(stage.clientWidth, stage.clientHeight);
     stage.prepend(renderer.domElement);
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, stage.clientWidth / stage.clientHeight, 0.01, 10);
+    const camera = new THREE.OrthographicCamera(-.55, .55, .42, -.42, .01, 10);
     const page = new THREE.Group();
     page.rotation.x = -Math.PI / 2;              // 繪本平放在桌上
     scene.add(page);
@@ -605,18 +667,19 @@ $('pvPlay').addEventListener('click', async () => {
     pageTex.colorSpace = THREE.SRGBColorSpace;
     page.add(new THREE.Mesh(new THREE.PlaneGeometry(PAGE_W, PAGE_H), new THREE.MeshBasicMaterial({ map: pageTex })));
     const cast = await buildCast(page);
-    camera.position.set(0, .95, .85);
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, .07, 0); controls.enableDamping = true;
-    controls.minDistance = .35; controls.maxDistance = 2.8;
-    controls.maxPolarAngle = Math.PI * .49; controls.update();
-    preview = { renderer, scene, camera, page, cast, controls, audio: pvAudio, t0: performance.now() };
+    camera.position.set(0, 1.5, 0); camera.up.set(0, 0, -1); camera.lookAt(0, 0, 0);
+    preview = { renderer, scene, camera, page, cast, audio: pvAudio, t0: performance.now() };
     window.__preview = preview;
     window.__upd = t => updateCast(cast, t);
-    new ResizeObserver(() => {
+    const resizePreview = () => {
       renderer.setSize(stage.clientWidth, stage.clientHeight);
-      camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix();
-    }).observe(stage);
+      const aspect = stage.clientWidth / stage.clientHeight;
+      const height = Math.max(PAGE_H + .10, 1.10 / aspect);
+      camera.left = -height * aspect / 2; camera.right = -camera.left;
+      camera.top = height / 2; camera.bottom = -camera.top;
+      camera.updateProjectionMatrix();
+    };
+    resizePreview(); new ResizeObserver(resizePreview).observe(stage);
   }
   await Promise.race([unlock, new Promise(r => setTimeout(r, 1500))]);
   if (epoch !== modeEpoch) return;
@@ -676,7 +739,7 @@ async function startAR() {
   try { cast = await buildCast(anchor.group); if (epoch === modeEpoch) arCast = cast; }
   catch (e) { pauseNarration(audio); await cleanupAR(engine); if (epoch === modeEpoch) showError({ name: 'LoadFail' }); return; }
   if (epoch !== modeEpoch) { await cleanupAR(engine); return; }
-  hintText('先正對第 2 頁，整頁四周留邊；找到後再稍微斜看');
+  hintText('正對第 2 頁，整頁四周留邊，角色會保持繪本的方向浮起');
   anchor.onTargetFound = () => {
     clearTimeout(lostTimer);
     visible = true; $('hint').hidden = true;
