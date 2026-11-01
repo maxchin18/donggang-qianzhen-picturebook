@@ -56,7 +56,9 @@ ol a{color:var(--sand)}
   font-family:var(--display);font-size:clamp(.95rem,3.4vw,1.2rem);background:#082c57d9;border-radius:12px;padding:6px 12px;color:#fff}
 
 /* AR 畫面 */
-#ar{position:fixed;inset:0;overflow:hidden;z-index:0}
+#ar{position:fixed;left:50%;top:50%;width:min(100vw,calc(100dvh * 4 / 3));height:min(100dvh,calc(100vw * 3 / 4));
+  transform:translate(-50%,-50%);overflow:hidden;z-index:0}
+@media(orientation:portrait){#ar{width:min(100vw,calc(100dvh * 3 / 4));height:min(100dvh,calc(100vw * 4 / 3))}}
 #ar video,#ar canvas{max-width:none}  /* MindAR 會把相機畫面放大超出螢幕再置中，不能被限制寬度 */
 .hud{position:fixed;left:0;right:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:8px;
   padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
@@ -102,7 +104,7 @@ ol a{color:var(--sand)}
     <ol>
       <li>翻到繪本第 2 頁（或在另一個螢幕打開<a href="../assets/pages/p02.webp" target="_blank" rel="noopener">第 2 頁大圖</a>）。</li>
       <li>按「開始 AR」，允許使用相機，並打開聲音。</li>
-      <li>手機<strong>橫著拿</strong>，把整頁放進畫面，稍微斜著看，角色會更立體。</li>
+      <li>手機<strong>橫著拿</strong>，先接近正對書頁、整頁四周留一點空間；辨識後再稍微斜著看。</li>
     </ol>
     <div class="handoff" id="handoff" hidden>
       <div class="qr" id="qr"></div>
@@ -122,7 +124,8 @@ ol a{color:var(--sand)}
       <div id="pvCap" hidden></div>
       <button class="bigsound" id="pvSound" type="button" hidden>🔊 點我聽故事</button>
     </div>
-    <p class="note">預覽是把同一組立體角色放在第 2 頁上方，用電腦螢幕模擬手機對準繪本時看到的樣子。</p>
+    <p class="note" id="pvStatus" role="status"></p>
+    <p class="note">拖曳可轉動視角，雙指或滾輪可縮放，近看三位漁夫、完整鮪魚和漁船。AR 和預覽使用同一組角色。</p>
   </section>
 </main>
 
@@ -155,6 +158,7 @@ ol a{color:var(--sand)}
 <script type="module">
 import * as THREE from 'three';
 import { MindARThree } from 'mindar-image-three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ---------- 本頁內容 ----------
 // 頁面座標：寬 = 1，原點在頁面中心，x 向右、y 向上、z 朝讀者（離開紙面）
@@ -166,20 +170,19 @@ const CAPS = [
 ];
 // x, y, w, h：角色在原畫上的位置與大小；path：跳出後的繞行路線
 const CHARS = [
-  { id: 'boat2',    kind: 'stand', x: 0.305,  y: 0.1497,  w: 0.2585, h: 0.1576, z: 0.01, delay: 0.0 },
-  { id: 'tuna_big', kind: 'fish',  x: -0.2216, y: -0.1755, w: 0.3783, h: 0.1621, delay: 0.6,
-    path: { cx: 0.0, cy: -0.17, rx: 0.32, ry: 0.09, z: 0.12, period: 16, phase: 3.4 } },
+  { id: 'tuna_big', kind: 'fish',  x: -0.2216, y: -0.1755, w: 0.34, h: 0.1434, delay: 0.6,
+    path: { cx: -0.03, cy: -0.17, rx: 0.24, ry: 0.07, z: 0.13, period: 16, phase: 3.4 } },
   { id: 'tuna_m',   kind: 'fish',  x: 0.2044, y: -0.2233, w: 0.2005, h: 0.1146, delay: 0.9,
-    path: { cx: 0.08, cy: -0.2, rx: 0.26, ry: 0.07, z: 0.1, period: 12, phase: 0.2 } },
+    path: { cx: 0.12, cy: -0.21, rx: 0.22, ry: 0.05, z: 0.09, period: 12, phase: 0.2 } },
   { id: 'tuna_r',   kind: 'fish',  x: 0.4228, y: -0.1429, w: 0.1322, h: 0.0775, delay: 1.2,
-    path: { cx: 0.22, cy: -0.09, rx: 0.2, ry: 0.06, z: 0.13, period: 10, phase: 0.6 } },
+    path: { cx: 0.27, cy: -0.08, rx: 0.12, ry: 0.045, z: 0.15, period: 10, phase: 0.6 } },
   { id: 'gull1',    kind: 'bird',  x: -0.3626, y: 0.29,   w: 0.099,  h: 0.0645, delay: 0.4,
-    path: { cx: -0.08, cy: 0.17, rx: 0.36, ry: 0.13, z: 0.34, period: 11, phase: 3.0 } },
+    path: { cx: -0.09, cy: 0.20, rx: 0.23, ry: 0.055, z: 0.24, period: 11, phase: 3.0 } },
   { id: 'gull2',    kind: 'bird',  x: 0.1158, y: 0.2448,  w: 0.099,  h: 0.0508, delay: 0.8,
-    path: { cx: 0.12, cy: 0.2, rx: 0.28, ry: 0.1, z: 0.27, period: 9, phase: 0.1 } },
+    path: { cx: 0.16, cy: 0.22, rx: 0.17, ry: 0.045, z: 0.20, period: 9, phase: 0.1 } },
 ];
 const RISE = 2.2;   // 從紙面浮起所需秒數
-const POP = 1.25;   // 跳出後放大倍率
+const POP = 1.16;   // 跳出後放大倍率，保留整頁取景的邊界
 
 const $ = id => document.getElementById(id);
 const ease = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
@@ -190,8 +193,11 @@ const loader = new THREE.TextureLoader();
 const b64 = (s, T) => { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
 let meshData = null;
 async function loadMeshes() {
-  if (!meshData) meshData = await (await fetch('p02/meshes.json')).json();
-  return meshData;
+  if (!meshData) meshData = fetch('p02/meshes.json?v=3').then(r => {
+    if (!r.ok) throw new Error(`meshes: HTTP ${r.status}`);
+    return r.json();
+  }).catch(e => { meshData = null; throw e; });
+  return await meshData;
 }
 
 // 魚身擺動：尾巴（左側）往兩側擺，像真的在游
@@ -215,27 +221,49 @@ function addLights(parent) {
   parent.add(fill, fill.target);
 }
 
-// 由原畫輪廓做出的立體網格（寬度 = w）
+const artAssets = new Map(), sharedArtTextures = new Set();
+// 同一條完整鮪魚的貼圖與原始網格共用；每隻魚保有自己的擺動 uniforms。
 async function artMesh(id, w, fish) {
-  const meshes = await loadMeshes(), m = meshes[id];
-  const tex = await loader.loadAsync(`p02/${id}.png`);
-  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(b64(m.p, Float32Array), 3));
-  geo.setAttribute('uv', new THREE.BufferAttribute(b64(m.u, Float32Array), 2));
-  geo.setIndex(new THREE.BufferAttribute(b64(m.i, m.i32 ? Uint32Array : Uint16Array), 1));
-  geo.computeVertexNormals();
+  const asset = fish ? 'tuna_complete' : id;
+  if (!artAssets.has(asset)) artAssets.set(asset, (async () => {
+    const [meshes, tex] = await Promise.all([loadMeshes(), loader.loadAsync(`p02/${asset}.webp`)]);
+    const m = meshes[asset];
+    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    sharedArtTextures.add(tex);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(b64(m.p, Float32Array), 3));
+    geometry.setAttribute('uv', new THREE.BufferAttribute(b64(m.u, Float32Array), 2));
+    geometry.setIndex(new THREE.BufferAttribute(b64(m.i, m.i32 ? Uint32Array : Uint16Array), 1));
+    geometry.computeVertexNormals();
+    return { geometry, tex, m };
+  })().catch(e => { artAssets.delete(asset); throw e; }));
+  const { geometry, tex, m } = await artAssets.get(asset);
+  const geo = geometry.clone();
   geo.scale(w, w, w);
   const uniforms = { uTime: { value: 0 }, uAmp: { value: fish ? w * m.ratio * 0.16 : 0 } };
-  const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0, alphaTest: 0.35, side: THREE.DoubleSide });
+  const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 1, metalness: 0 });
   if (fish) wiggle(mat, uniforms);
   return { mesh: new THREE.Mesh(geo, mat), uniforms };
 }
 
 // ---------- 3D 漁船與三位漁夫（原畫被船身擋住，改用完整的立體模型） ----------
-const BOAT = { x: -0.2, y: 0.17, delay: 0.2 };
+const BOAT = { x: -0.19, y: 0.12, delay: 0.2 };
+const paperTexture = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const ctx = c.getContext('2d'), pixels = ctx.createImageData(128, 128);
+  let seed = 47;
+  for (let i = 0; i < pixels.data.length; i += 4) {
+    seed = (seed * 16807) % 2147483647;
+    const value = 230 + seed % 26;
+    pixels.data.set([value, value, value, 255], i);
+  }
+  ctx.putImageData(pixels, 0, 0);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1.5, 1.5);
+  return tex;
+})();
 function paperMat(color, extra = {}) {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0, flatShading: true, ...extra });
+  return new THREE.MeshStandardMaterial({ color, map: paperTexture, roughness: 1, metalness: 0, ...extra });
 }
 function box(w, d, h, color) { return new THREE.Mesh(new THREE.BoxGeometry(w, d, h), paperMat(color)); }
 
@@ -254,24 +282,46 @@ function makeFisherman(o) {
   const hip = new THREE.Mesh(new THREE.CylinderGeometry(0.0125, 0.0125, 0.01, 10), paperMat(o.overall));
   hip.rotation.x = Math.PI / 2; hip.position.z = 0.038; f.add(hip);
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.0105, 12, 10), paperMat(skin)); head.position.z = 0.0775; f.add(head);
+  head.name = 'head';
+  for (const sx of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.0014, 8, 6), paperMat(0x172b3b));
+    eye.position.set(sx * 0.0038, -0.0095, 0.0795); f.add(eye);
+    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.0025, 8, 6), paperMat(skin));
+    ear.position.set(sx * 0.0101, 0, 0.077); f.add(ear);
+    const strap = box(0.003, 0.002, 0.024, o.overall);
+    strap.position.set(sx * 0.006, -0.0107, 0.058); f.add(strap);
+  }
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.0023, 8, 6), paperMat(skin));
+  nose.position.set(0, -0.011, 0.076); f.add(nose);
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.003, 0.0005, 4, 10, Math.PI), paperMat(0x794b35));
+  smile.rotation.set(Math.PI / 2, 0, Math.PI); smile.position.set(0, -0.0099, 0.074); f.add(smile);
   const cap = new THREE.Mesh(new THREE.SphereGeometry(0.0112, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), paperMat(o.cap));
   cap.rotation.x = Math.PI / 2; cap.position.z = 0.08; f.add(cap);
   if (!o.helmet) { const brim = box(0.014, 0.012, 0.002, o.cap); brim.position.set(0, -0.012, 0.081); f.add(brim); }
-  const arms = [];
+  const arms = [], hands = [];
   for (const sx of [-1, 1]) {
     const sh = new THREE.Group(); sh.position.set(sx * 0.0135, -0.002, 0.064);
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.0042, 0.0042, 0.026, 6), paperMat(o.shirt));
-    arm.rotation.x = Math.PI / 2; arm.position.z = -0.013; sh.add(arm);
-    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 8, 6), paperMat(0x2f6fd0)); glove.position.z = -0.027; sh.add(glove);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.0043, 0.004, 0.016, 8), paperMat(o.shirt));
+    arm.rotation.x = Math.PI / 2; arm.position.z = -0.008; sh.add(arm);
+    const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.0041, 8, 6), paperMat(o.shirt));
+    elbow.position.z = -0.016; sh.add(elbow);
+    const forearm = new THREE.Group(); forearm.position.z = -0.016; forearm.rotation.x = -0.4;
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.0038, 0.0033, 0.014, 8), paperMat(o.shirt));
+    sleeve.rotation.x = Math.PI / 2; sleeve.position.z = -0.007; forearm.add(sleeve);
+    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.005, 8, 6), paperMat(0x2f6fd0));
+    glove.name = sx < 0 ? 'left-hand' : 'right-hand'; glove.position.z = -0.016; forearm.add(glove);
+    sh.add(forearm); hands.push(glove);
     f.add(sh); arms.push(sh);
   }
   f.userData.arms = arms;
+  f.userData.hands = hands;
   return f;
 }
 
-async function buildBoat(parent, fishMaker) {
+async function buildBoat(parent, fishMaker, distant = false) {
   const L = 0.4, W = 0.12, D = 0.07;           // 船長、船寬、甲板高度
   const boat = new THREE.Group();
+  boat.name = distant ? 'distant-boat' : 'main-boat';
   const hullShape = new THREE.Shape();
   hullShape.moveTo(-L / 2, 0.016); hullShape.lineTo(L * 0.32, 0.004);
   hullShape.quadraticCurveTo(L * 0.5, 0.006, L * 0.56, D + 0.012); hullShape.lineTo(-L / 2, D); hullShape.closePath();
@@ -279,9 +329,10 @@ async function buildBoat(parent, fishMaker) {
   hullGeo.rotateX(Math.PI / 2); hullGeo.translate(0, W / 2, 0);
   boat.add(new THREE.Mesh(hullGeo, paperMat(0xf6f3ea)));
   const stripe = box(L * 0.98, W + 0.016, 0.012, 0x1f4fa8); stripe.position.set(0.0, 0, D - 0.022); boat.add(stripe);
-  const keel = box(L * 0.78, W + 0.012, 0.012, 0xc8402e); keel.position.set(-0.02, 0, 0.014); boat.add(keel);
-  const deck = box(L * 0.96, W * 0.94, 0.005, 0x9c7b55); deck.position.set(0.005, 0, D); boat.add(deck);
-  for (const sy of [-1, 1]) { const rail = box(L * 0.9, 0.003, 0.016, 0xffffff); rail.position.set(0.01, sy * W * 0.47, D + 0.012); boat.add(rail); }
+  const keel = box(L * 0.78, W + 0.021, 0.012, 0xc8402e); keel.position.set(-0.02, 0, 0.014); boat.add(keel);
+  const deck = box(L * 0.96, W * 0.94, 0.005, 0xb99b70); deck.position.set(0.005, 0, D + 0.010); boat.add(deck);
+  // Low rails keep the three crew members visible down to their boots.
+  for (const sy of [-1, 1]) { const rail = box(L * 0.9, 0.0025, 0.009, 0xffffff); rail.position.set(0.01, sy * W * 0.47, D + 0.017); boat.add(rail); }
   const cabin = box(0.11, W * 0.8, 0.065, 0xffffff); cabin.position.set(-L / 2 + 0.07, 0, D + 0.034); boat.add(cabin);
   const roof = box(0.12, W * 0.84, 0.008, 0x2a5fb0); roof.position.set(-L / 2 + 0.07, 0, D + 0.07); boat.add(roof);
   for (const sx of [-0.03, 0, 0.03]) { const win = box(0.02, 0.003, 0.016, 0x203048); win.position.set(-L / 2 + 0.07 + sx, -W * 0.41, D + 0.045); boat.add(win); }
@@ -298,7 +349,11 @@ async function buildBoat(parent, fishMaker) {
   const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.04, 14), paperMat(0x2e8b57));
   reel.position.set(-0.07, W * 0.18, D + 0.022); boat.add(reel);
   for (const [x, y, c] of [[0.14, 0.03, 0xf2c230], [0.12, -0.02, 0x2e7fd0], [0.16, -0.01, 0xf2c230]]) {
-    const crate = box(0.022, 0.022, 0.016, c); crate.position.set(x, y, D + 0.01); boat.add(crate);
+    const crate = box(0.022, 0.022, 0.016, c); crate.position.set(x, y, D + 0.022); boat.add(crate);
+  }
+  for (let i = 0; i < 7; i++) {
+    const plank = box(0.002, W * .84, 0.001, 0x715c43);
+    plank.position.set(-0.035 + i * 0.03, 0, D + .014); boat.add(plank);
   }
   // 三位漁夫（顏色取自原畫）
   const crew = [
@@ -306,28 +361,33 @@ async function buildBoat(parent, fishMaker) {
     makeFisherman({ shirt: 0xf4f1ea, overall: 0xf07a2a, cap: 0xf6f6f6, helmet: true }),
     makeFisherman({ shirt: 0x2f5aa8, overall: 0xf2c22e, cap: 0x3a8a4a }),
   ];
-  crew.forEach((f, i) => { f.position.set(-0.03 + i * 0.055, -W * 0.22, D + 0.003); boat.add(f); });
+  crew.forEach((f, i) => {
+    f.name = `${distant ? 'distant' : 'main'}-fisherman-${i + 1}`;
+    f.position.set(-0.035 + i * 0.065, -W * 0.22, D + 0.013);
+    f.scale.setScalar(1.3); boat.add(f);
+  });
   // 被拉上船的黑鮪魚（掛在船舷外）
   const tuna = await fishMaker('tuna_big', 0.15);
+  tuna.mesh.name = distant ? 'distant-hanging-tuna' : 'hanging-tuna';
   const tunaHolder = new THREE.Group();
   tunaHolder.position.set(0.025, -W / 2 - 0.035, D * 0.6);
   tunaHolder.rotation.set(Math.PI / 2, 0, 0);
   tuna.mesh.rotation.z = 1.25;                  // 頭朝上
   tunaHolder.add(tuna.mesh); boat.add(tunaHolder);
-  const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-  const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xeeeeee }));
+  const lineGeo = new THREE.BufferGeometry().setFromPoints(Array.from({ length: 12 }, () => new THREE.Vector3()));
+  const line = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: 0xece3cd }));
   boat.add(line);
 
   const holder = new THREE.Group(); holder.add(boat);
-  holder.position.set(BOAT.x, BOAT.y, 0);
+  holder.position.set(distant ? 0.30 : BOAT.x, distant ? 0.18 : BOAT.y, 0);
   parent.add(holder);
   const v1 = new THREE.Vector3(), v2 = new THREE.Vector3();
   return {
     update(t) {
       const k = ease((t - BOAT.delay) / RISE), tt = Math.max(0, t - BOAT.delay);
-      const s = Math.max(0.001, k);
+      const s = Math.max(0.001, k) * (distant ? 0.40 : 0.90);
       holder.scale.set(s, s, s);
-      holder.position.z = 0.01 * k + Math.sin(tt * 1.6) * 0.004 * k;
+      holder.position.z = 0.028 * k + Math.sin(tt * 1.6) * 0.004 * k;
       holder.rotation.set(Math.sin(tt * 1.3) * 0.05 * k, Math.sin(tt * 0.9) * 0.025 * k, 0);
       crew.forEach((f, i) => {
         const pull = Math.sin(tt * 2.6 + i * 0.9);
@@ -337,17 +397,25 @@ async function buildBoat(parent, fishMaker) {
       tunaHolder.position.z = D * 0.55 + Math.sin(tt * 2.6) * 0.02;
       tuna.uniforms.uTime.value = tt * 1.6;                   // 魚掙扎擺動
       tuna.mesh.rotation.z = 1.25 + Math.sin(tt * 5) * 0.12;
-      crew[1].userData.arms[0].getWorldPosition(v1); boat.worldToLocal(v1);
-      tunaHolder.getWorldPosition(v2); boat.worldToLocal(v2); v2.z += 0.06;
-      lineGeo.attributes.position.setXYZ(0, v1.x, v1.y - 0.02, v1.z - 0.03);
-      lineGeo.attributes.position.setXYZ(1, v2.x, v2.y, v2.z);
+      tuna.mesh.localToWorld(v2.set(0.15 * 0.47, 0, 0)); boat.worldToLocal(v2);
+      crew.flatMap(f => f.userData.hands).forEach((hand, i) => {
+        hand.getWorldPosition(v1); boat.worldToLocal(v1);
+        lineGeo.attributes.position.setXYZ(i * 2, v1.x, v1.y, v1.z);
+        lineGeo.attributes.position.setXYZ(i * 2 + 1, v2.x, v2.y, v2.z);
+      });
       lineGeo.attributes.position.needsUpdate = true;
     },
+    holder, boat, crew, tuna: tuna.mesh,
   };
 }
 
 async function buildCast(parent) {
   addLights(parent);
+  const cleanTex = await loader.loadAsync('p02/clean-page.webp');
+  cleanTex.colorSpace = THREE.SRGBColorSpace;
+  const clean = new THREE.Mesh(new THREE.PlaneGeometry(PAGE_W, PAGE_H),
+    new THREE.MeshBasicMaterial({ map: cleanTex, transparent: true, opacity: 0 }));
+  clean.name = 'clean-page'; clean.position.z = .0003; parent.add(clean);
   const shadowTex = (() => {
     const c = document.createElement('canvas'); c.width = c.height = 64;
     const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -356,8 +424,10 @@ async function buildCast(parent) {
     return new THREE.CanvasTexture(c);
   })();
   const cast = [];
-  for (const def of CHARS) {
-    const { mesh: body, uniforms } = await artMesh(def.id, def.w, def.kind === 'fish');
+  const models = await Promise.all(CHARS.map(def => artMesh(def.id, def.w, def.kind === 'fish')));
+  for (const [i, def] of CHARS.entries()) {
+    const { mesh: body, uniforms } = models[i];
+    body.name = def.id;
     const pivot = new THREE.Group();            // 控制「站起來」的角度
     const holder = new THREE.Group();           // 控制位置與方向
     pivot.add(body); holder.add(pivot);
@@ -367,12 +437,22 @@ async function buildCast(parent) {
     cast.push({ def, holder, pivot, body, shadow, uniforms, heading: 0 });
   }
   cast.boat = await buildBoat(parent, (id, w) => artMesh(id, w, true));
+  cast.distantBoat = await buildBoat(parent, (id, w) => artMesh(id, w, true), true);
+  cast.clean = clean;
+  cast.boatShadows = [cast.boat, cast.distantBoat].map(({ holder }, i) => {
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(i ? .22 : .46, i ? .07 : .15),
+      new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: .5 }));
+    shadow.position.set(holder.position.x, holder.position.y, .001); parent.add(shadow); return shadow;
+  });
   return cast;
 }
 
 // 每一格更新角色：t = 出場後經過的秒數
 function updateCast(cast, t) {
   if (cast.boat) cast.boat.update(t);
+  if (cast.distantBoat) cast.distantBoat.update(t);
+  if (cast.clean) cast.clean.material.opacity = ease(t / 1.2);
+  cast.boatShadows?.forEach(s => { s.material.opacity = .55 * ease(t / RISE); });
   for (const c of cast) {
     const { def, holder, pivot, body, shadow, uniforms } = c;
     const k = ease((t - def.delay) / RISE);
@@ -418,11 +498,18 @@ function makeNarration() {
   return a;
 }
 function unlockAudio(a) {
-  return a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+  a.narrationIntent = 'unlocking';
+  return a.play().then(() => {
+    // 慢下載的舊解鎖 Promise 不能把已開始的正式旁白暫停、歸零。
+    if (a.narrationIntent === 'unlocking') { a.pause(); a.currentTime = 0; a.narrationIntent = 'paused'; }
+  }).catch(() => {});
 }
+function pauseNarration(a) { if (a) { a.narrationIntent = 'paused'; a.pause(); } }
 // 播放旁白；手機擋住自動播放時，跳出「點我聽故事」按鈕讓使用者直接點
 function playNarration(a, btn) {
-  a.play().then(() => { btn.hidden = true; }).catch(() => { btn.hidden = false; });
+  a.narrationIntent = 'playing';
+  a.play().then(() => { if (a.narrationIntent === 'playing') btn.hidden = true; })
+    .catch(() => { if (a.narrationIntent === 'playing') btn.hidden = false; });
 }
 
 // ---------- 開啟環境判斷 ----------
@@ -465,7 +552,7 @@ $('errPreview').addEventListener('click', () => {
 });
 
 // ---------- 預覽模式 ----------
-let preview = null;
+let preview = null, previewLoading = false, modeEpoch = 0, activeMode = 'intro';
 $('showPage').addEventListener('click', () => {
   const img = $('pageView').querySelector('img'); if (!img.src) img.src = img.dataset.src;   // 要看時才下載大圖
   $('pageView').hidden = false;
@@ -476,17 +563,36 @@ $('showPreview').addEventListener('click', () => {
   $('preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 let pvAudio = null;
+function renderPreview() {
+  if (!preview || activeMode !== 'preview' || document.hidden) return;
+  const { renderer, scene, camera, cast, controls } = preview;
+  updateCast(cast, (performance.now() - preview.t0) / 1000);
+  controls.update();
+  const text = captionAt(pvAudio.currentTime);
+  $('pvCap').hidden = !text || pvAudio.paused; $('pvCap').textContent = text;
+  renderer.render(scene, camera);
+}
+function stopPreview() {
+  pauseNarration(pvAudio);
+  if (preview) preview.renderer.setAnimationLoop(null);
+  $('pvSound').hidden = true; $('pvCap').hidden = true;
+  $('pvPlay').hidden = false; $('pvPlay').textContent = '↻ 再看一次';
+}
 $('pvPlay').addEventListener('click', async () => {
+  if (previewLoading) return;
+  previewLoading = true;
+  const epoch = ++modeEpoch; activeMode = 'preview';
   $('pvPlay').hidden = true;
+  $('pvStatus').textContent = '角色準備中…';
   if (!pvAudio) {
     pvAudio = makeNarration();
     pvAudio.onended = () => { $('pvPlay').hidden = false; $('pvPlay').textContent = '↻ 再看一次'; };
   }
-  pvAudio.currentTime = 0;
-  playNarration(pvAudio, $('pvSound'));            // 在點擊當下就開始播放
+  const unlock = unlockAudio(pvAudio);
+  try {
   if (!preview) {
     const stage = $('stage');
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(2, devicePixelRatio));
     renderer.setSize(stage.clientWidth, stage.clientHeight);
     stage.prepend(renderer.domElement);
@@ -495,37 +601,42 @@ $('pvPlay').addEventListener('click', async () => {
     const page = new THREE.Group();
     page.rotation.x = -Math.PI / 2;              // 繪本平放在桌上
     scene.add(page);
-    const pageTex = await loader.loadAsync('../assets/pages/p02.webp');
+    const pageTex = await loader.loadAsync('../assets/pages/p02-s.webp');
     pageTex.colorSpace = THREE.SRGBColorSpace;
     page.add(new THREE.Mesh(new THREE.PlaneGeometry(PAGE_W, PAGE_H), new THREE.MeshBasicMaterial({ map: pageTex })));
     const cast = await buildCast(page);
-    const audio = pvAudio;
-    preview = { renderer, scene, camera, page, cast, t0: performance.now() };
+    camera.position.set(0, .95, .85);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, .07, 0); controls.enableDamping = true;
+    controls.minDistance = .35; controls.maxDistance = 2.8;
+    controls.maxPolarAngle = Math.PI * .49; controls.update();
+    preview = { renderer, scene, camera, page, cast, controls, audio: pvAudio, t0: performance.now() };
     window.__preview = preview;
     window.__upd = t => updateCast(cast, t);
     new ResizeObserver(() => {
       renderer.setSize(stage.clientWidth, stage.clientHeight);
       camera.aspect = stage.clientWidth / stage.clientHeight; camera.updateProjectionMatrix();
     }).observe(stage);
-    renderer.setAnimationLoop(() => {
-      const t = (performance.now() - preview.t0) / 1000;
-      const a = Math.sin(t * 0.25) * 0.5;          // 鏡頭左右慢慢繞，看出立體感
-      camera.position.set(Math.sin(a) * 0.85, 1.15, Math.cos(a) * 0.85);   // 像手機從斜上方往下看
-      camera.lookAt(0, 0.08, 0);
-      updateCast(cast, t);
-      const text = captionAt(audio.currentTime);
-      $('pvCap').hidden = !text || audio.paused;
-      $('pvCap').textContent = text;
-      renderer.render(scene, camera);
-    });
   }
+  await Promise.race([unlock, new Promise(r => setTimeout(r, 1500))]);
+  if (epoch !== modeEpoch) return;
+  pvAudio.currentTime = 0;
   preview.t0 = performance.now();
+  playNarration(pvAudio, $('pvSound'));
+  preview.renderer.setAnimationLoop(renderPreview);
+  $('pvStatus').textContent = '';
+  } catch (e) {
+    pauseNarration(pvAudio); $('pvPlay').hidden = false; $('pvPlay').textContent = '重新載入角色';
+    $('pvStatus').textContent = '角色沒有下載完成，請確認網路後再試一次。';
+    if (!preview) $('stage').querySelector('canvas')?.remove();
+  } finally { previewLoading = false; }
 });
 $('pvSound').addEventListener('click', () => playNarration(pvAudio, $('pvSound')));
 
 // ---------- AR 模式 ----------
-let mindar = null, audio = null, started = null, visible = false;
-window.__ar = { get visible() { return visible; }, get audio() { return audio; }, get started() { return started; } };
+let mindar = null, audio = null, started = null, visible = false, arCast = null, arObserver = null;
+window.__ar = { get visible() { return visible; }, get audio() { return audio; }, get started() { return started; },
+  get cast() { return arCast; }, get engine() { return mindar; } };
 
 let starting = false, lostTimer = 0;
 const hintText = t => { $('hintText').textContent = t; };
@@ -535,49 +646,56 @@ $('startAR').addEventListener('click', async () => {
   try { await startAR(); } finally { starting = false; $('startAR').disabled = false; $('startAR').textContent = '開始 AR'; }
 });
 async function startAR() {
+  const epoch = ++modeEpoch; activeMode = 'ar'; stopPreview();
   audio = makeNarration();
   const unlock = unlockAudio(audio);               // 在點擊當下解鎖聲音（iPhone 需要）
   try {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw { name: 'Unsupported' };
     const test = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     test.getTracks().forEach(t => t.stop());
-  } catch (e) { showError(e); return; }
+  } catch (e) { pauseNarration(audio); showError(e); return; }
   await Promise.race([unlock, new Promise(r => setTimeout(r, 1500))]);   // 聲音檔太慢時不要卡住
+  if (epoch !== modeEpoch) return;
 
   $('intro').hidden = true; $('ar').hidden = false; $('hud').hidden = false; $('hint').hidden = false;
   $('hint').classList.remove('lost'); hintText('角色載入中，請稍候…');
 
   // MindAR 建立的相機畫面要設成靜音，嚴格的手機瀏覽器才肯自動播放
-  new MutationObserver((list, obs) => {
+  arObserver = new MutationObserver((list, obs) => {
     const v = $('ar').querySelector('video');
     if (v) { v.muted = true; v.playsInline = true; obs.disconnect(); }
-  }).observe($('ar'), { childList: true, subtree: true });
-  mindar = new MindARThree({ container: $('ar'), imageTargetSrc: 'p02.mind', uiScanning: 'no', filterMinCF: 0.0001, filterBeta: 0.001 });
-  const { renderer, scene, camera } = mindar;
-  const anchor = mindar.addAnchor(0);
+  });
+  arObserver.observe($('ar'), { childList: true, subtree: true });
+  try { mindar = new MindARThree({ container: $('ar'), imageTargetSrc: 'p02.mind', uiScanning: 'no', filterMinCF: 0.0001, filterBeta: 0.001 }); }
+  catch (e) { pauseNarration(audio); showError({ name: 'LoadFail' }); return; }
+  const engine = mindar;
+  const { renderer, scene, camera } = engine;
+  const anchor = engine.addAnchor(0);
   renderer.setPixelRatio(Math.min(1.5, devicePixelRatio));   // 限制畫質，中階手機才跑得順
   let cast;
-  try { cast = await buildCast(anchor.group); }
-  catch (e) { $('ar').innerHTML = ''; showError({ name: 'LoadFail' }); return; }
-  hintText('把繪本第 2 頁整頁放進畫面（手機橫拿效果最好）');
+  try { cast = await buildCast(anchor.group); if (epoch === modeEpoch) arCast = cast; }
+  catch (e) { pauseNarration(audio); await cleanupAR(engine); if (epoch === modeEpoch) showError({ name: 'LoadFail' }); return; }
+  if (epoch !== modeEpoch) { await cleanupAR(engine); return; }
+  hintText('先正對第 2 頁，整頁四周留邊；找到後再稍微斜看');
   anchor.onTargetFound = () => {
     clearTimeout(lostTimer);
     visible = true; $('hint').hidden = true;
     if (started === null) { started = performance.now(); audio.currentTime = 0; }
-    if (!audio.ended) playNarration(audio, $('sound'));
+    if (!audio.ended && !document.hidden) playNarration(audio, $('sound'));
   };
   // 手晃一下就遺失很常見：等 1 秒還找不到才暫停，提示放在下緣不擋畫面
   anchor.onTargetLost = () => {
     clearTimeout(lostTimer);
     lostTimer = setTimeout(() => {
-      visible = false; audio.pause(); $('sound').hidden = true;
+      visible = false; pauseNarration(audio); $('sound').hidden = true;
       hintText('找不到第 2 頁了，把整頁放回畫面就會繼續'); $('hint').classList.add('lost'); $('hint').hidden = false;
     }, 1000);
   };
   audio.addEventListener('ended', () => { $('replay').hidden = false; });
 
-  try { await mindar.start(); }
-  catch (e) { try { await mindar.stop(); } catch (_) {} $('ar').innerHTML = ''; showError(e); return; }
+  try { await engine.start(); }
+  catch (e) { pauseNarration(audio); await cleanupAR(engine); if (epoch === modeEpoch) showError(e); return; }
+  if (epoch !== modeEpoch) { await cleanupAR(engine); return; }
   const camVideo = $('ar').querySelector('video');
   if (camVideo && camVideo.paused) { camVideo.muted = true; camVideo.play().catch(() => {}); }
 
@@ -592,9 +710,16 @@ async function startAR() {
 
 // 切到其他 App 或關掉螢幕時暫停旁白
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) return;
-  if (audio) audio.pause();
-  if (pvAudio) pvAudio.pause();
+  if (document.hidden) {
+    pauseNarration(audio); pauseNarration(pvAudio);
+    if (preview) preview.renderer.setAnimationLoop(null);
+  } else {
+    if (activeMode === 'ar' && visible && audio && !audio.ended) $('sound').hidden = false;
+    if (activeMode === 'preview' && preview) {
+      preview.renderer.setAnimationLoop(renderPreview);
+      if (pvAudio && !pvAudio.ended) $('pvSound').hidden = false;
+    }
+  }
 });
 
 $('replay').addEventListener('click', () => {
@@ -606,12 +731,32 @@ $('mute').addEventListener('click', () => {
   audio.muted = !audio.muted;
   $('mute').textContent = audio.muted ? '🔇 聲音關' : '🔊 聲音開';
 });
+async function cleanupAR(engine = mindar) {
+  arObserver?.disconnect(); arObserver = null;
+  if (engine) {
+    engine.renderer.setAnimationLoop(null);
+    try { await engine.stop(); } catch (_) {}
+    const geometries = new Set(), materials = new Set(), textures = new Set();
+    engine.scene.traverse(node => {
+      if (node.geometry) geometries.add(node.geometry);
+      for (const mat of (Array.isArray(node.material) ? node.material : node.material ? [node.material] : [])) {
+        materials.add(mat);
+        if (mat.map && mat.map !== paperTexture && !sharedArtTextures.has(mat.map)) textures.add(mat.map);
+      }
+    });
+    geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose());
+    engine.renderer.dispose();
+  }
+  if (mindar === engine) { mindar = null; arCast = null; }
+  if (!mindar) $('ar').innerHTML = '';
+}
 $('exit').addEventListener('click', async () => {
-  if (mindar) { mindar.renderer.setAnimationLoop(null); await mindar.stop(); $('ar').innerHTML = ''; }
-  if (audio) audio.pause();
+  ++modeEpoch; activeMode = 'intro';
+  pauseNarration(audio);
+  clearTimeout(lostTimer); visible = false; started = null;
+  await cleanupAR();
   ['ar', 'hud', 'hint', 'cap', 'replay', 'sound'].forEach(id => $(id).hidden = true);
   $('intro').hidden = false;
-  clearTimeout(lostTimer); visible = false; started = null;
 });
 </script>
 </body>
